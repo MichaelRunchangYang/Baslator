@@ -1,0 +1,1324 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://code.jquery.com https://unpkg.com https://d3js.org https://threejs.org https://cdn.plot.ly https://stackpath.bootstrapcdn.com https://maps.googleapis.com https://cdn.tailwindcss.com https://ajax.googleapis.com https://kit.fontawesome.com https://cdn.datatables.net https://maxcdn.bootstrapcdn.com https://code.highcharts.com https://tako-static-assets-production.s3.amazonaws.com https://www.youtube.com https://fonts.googleapis.com https://fonts.gstatic.com https://pfst.cf2.poecdn.net https://puc.poecdn.net https://i.imgur.com https://wikimedia.org https://*.icons8.com https://*.giphy.com https://picsum.photos https://images.unsplash.com; frame-src 'self' https://www.youtube.com https://trytako.com; child-src 'self'; manifest-src 'self'; worker-src 'self'; upgrade-insecure-requests; block-all-mixed-content;"
+    />
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>英文回译训练</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg-primary: #181818;
+          --text-primary: #e5e5e5;
+          --bg-secondary: #262626;
+          --border-color: #404040;
+          --highlight-bg: #2d2d5d;
+          --primary-color: #5d5cde;
+          --primary-light: #7e7df0;
+        }
+      }
+
+      @media (prefers-color-scheme: light) {
+        :root {
+          --bg-primary: #ffffff;
+          --text-primary: #333333;
+          --bg-secondary: #f5f5f5;
+          --border-color: #e0e0e0;
+          --highlight-bg: #ececf8;
+          --primary-color: #5d5cde;
+          --primary-light: #7e7df0;
+        }
+      }
+
+      body {
+        background-color: var(--bg-primary);
+        color: var(--text-primary);
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+          Roboto, sans-serif;
+      }
+
+      .app-container {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 1rem;
+      }
+
+      .card {
+        background-color: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 0.5rem;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+      }
+
+      .btn {
+        background-color: var(--primary-color);
+        color: white;
+        padding: 0.5rem 1rem;
+        border-radius: 0.25rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background-color 0.2s ease;
+      }
+
+      .btn:hover {
+        background-color: var(--primary-light);
+      }
+
+      .btn:disabled {
+        background-color: #9ca3af;
+        cursor: not-allowed;
+      }
+
+      textarea,
+      input {
+        background-color: var(--bg-primary);
+        color: var(--text-primary);
+        border: 1px solid var(--border-color);
+        border-radius: 0.25rem;
+        padding: 0.75rem;
+        font-size: 16px;
+        line-height: 1.5;
+        width: 100%;
+        resize: vertical;
+      }
+
+      textarea:focus,
+      input:focus {
+        outline: 2px solid var(--primary-color);
+      }
+
+      .text-chunk {
+        background-color: var(--highlight-bg);
+        padding: 0.75rem;
+        border-radius: 0.25rem;
+        margin-bottom: 0.5rem;
+        line-height: 1.6;
+      }
+
+      .comparison-item {
+        border-left: 3px solid var(--primary-color);
+        padding-left: 1rem;
+        margin-bottom: 1.5rem;
+      }
+
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+        }
+        to {
+          opacity: 1;
+        }
+      }
+
+      .fade-in {
+        animation: fadeIn 0.5s ease-in-out;
+      }
+
+      .step-indicator {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 2rem;
+      }
+
+      .step {
+        flex: 1;
+        text-align: center;
+        padding: 0.5rem;
+      }
+
+      .step.active {
+        font-weight: bold;
+        color: var(--primary-color);
+        border-bottom: 2px solid var(--primary-color);
+      }
+
+      .chunk-counter {
+        font-size: 0.75rem;
+        color: #9ca3af;
+        text-align: right;
+        margin-bottom: 0.25rem;
+      }
+
+      .progress-bar-container {
+        width: 100%;
+        height: 0.5rem;
+        background-color: var(--border-color);
+        border-radius: 0.25rem;
+        margin-bottom: 1rem;
+      }
+
+      .progress-bar {
+        height: 100%;
+        background-color: var(--primary-color);
+        border-radius: 0.25rem;
+        transition: width 0.3s ease;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app-container">
+      <h1 class="text-2xl font-bold mb-6 text-center">英文回译训练</h1>
+
+      <div class="step-indicator">
+        <div id="step1" class="step active">1. 输入文章</div>
+        <div id="step2" class="step">2. 英译中</div>
+        <div id="step3" class="step">3. 中译英</div>
+        <div id="step4" class="step">4. 对比分析</div>
+      </div>
+
+      <div id="inputSection" class="card fade-in">
+        <h2 class="text-xl font-semibold mb-4">输入英文文章</h2>
+        <p class="mb-4">
+          请输入您要用于回译训练的英文文章。系统将自动将文章分割成小块以便于翻译。
+        </p>
+        <textarea
+          id="originalText"
+          class="mb-4"
+          rows="10"
+          placeholder="在此粘贴英文文章..."
+        ></textarea>
+        <div class="flex justify-between">
+          <button id="demoBtn" class="btn bg-gray-500 mr-2">快速演示</button>
+          <button id="startBtn" class="btn">开始训练</button>
+        </div>
+      </div>
+
+      <div id="translationSection" class="hidden">
+        <div class="progress-bar-container">
+          <div
+            id="translationProgress"
+            class="progress-bar"
+            style="width: 0%"
+          ></div>
+        </div>
+        <div id="chunkInfo" class="mb-2 text-sm"></div>
+        <div id="translationChunks"></div>
+        <div class="flex justify-between mt-4">
+          <button id="prevTransBtn" class="btn bg-gray-500">上一段</button>
+          <button id="backToInputBtn" class="btn bg-gray-500">返回输入</button>
+          <button id="nextTransBtn" class="btn">下一段</button>
+        </div>
+        <div class="mt-4">
+          <button id="finishTransBtn" class="btn w-full hidden">
+            完成翻译，进入回译阶段
+          </button>
+        </div>
+      </div>
+
+      <div id="backTranslationSection" class="hidden">
+        <div class="progress-bar-container">
+          <div
+            id="backTranslationProgress"
+            class="progress-bar"
+            style="width: 0%"
+          ></div>
+        </div>
+        <div id="backChunkInfo" class="mb-2 text-sm"></div>
+        <div id="backTranslationChunks"></div>
+        <div class="flex justify-between mt-4">
+          <button id="prevBackBtn" class="btn bg-gray-500">上一段</button>
+          <button id="backToInputBtn" class="btn bg-gray-500">返回输入</button>
+          <button id="nextBackBtn" class="btn">下一段</button>
+        </div>
+        <div class="mt-4">
+          <button id="finishBackBtn" class="btn w-full hidden">
+            完成回译，查看对比结果
+          </button>
+        </div>
+      </div>
+
+      <div id="comparisonSection" class="hidden">
+        <div class="card">
+          <h2 class="text-xl font-semibold mb-4">回译对比分析</h2>
+          <p class="mb-4">
+            通过对比原文和回译文本，您可以发现自己在表达方式、用词选择和语法结构上的差异。
+          </p>
+          <div id="comparisonResults"></div>
+          <div class="mt-4 flex flex-wrap gap-2">
+            <button id="exportBtn" class="btn bg-blue-600 flex-1">
+              导出训练结果
+            </button>
+            <button id="newSessionBtn" class="btn flex-1">开始新的训练</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="historySection" class="hidden">
+        <div class="card">
+          <div class="flex justify-between items-center mb-4">
+            <h2 class="text-xl font-semibold">训练历史记录</h2>
+            <button id="newTrainingBtn" class="btn">新建训练</button>
+          </div>
+          <div
+            id="historyList"
+            class="divide-y divide-gray-200 dark:divide-gray-700"
+          >
+            <!-- 历史记录将在这里动态生成 -->
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // 示例文本（用于快速演示）
+      const demoText = `Learning a new language is a journey that requires patience and practice. 
+It opens doors to new cultures and perspectives. 
+Research shows that bilingual people have better cognitive abilities.
+Regular practice is the key to success in language learning.`;
+
+      const demoTranslations = [
+        "学习一门新语言是一段需要耐心和练习的旅程。",
+        "它为新的文化和视角打开了大门。",
+        "研究表明，双语人士拥有更好的认知能力。",
+        "定期练习是语言学习成功的关键。",
+      ];
+
+      const demoBackTranslations = [
+        "Learning a new language is a journey that needs patience and practice.",
+        "It opens doors to new cultures and perspectives.",
+        "Studies show that bilingual people have better cognitive abilities.",
+        "Regular practice is the key to success in language learning.",
+      ];
+
+      // 数据存储相关函数
+      const storage = {
+        // 保存训练记录
+        saveTrainingRecord: function (record) {
+          // 获取现有记录列表
+          const records = this.getAllRecords();
+
+          // 添加新记录
+          records[record.id] = record;
+
+          // 保存回本地存储
+          localStorage.setItem("trainingRecords", JSON.stringify(records));
+        },
+
+        // 获取特定训练记录
+        getRecord: function (id) {
+          const records = this.getAllRecords();
+          return records[id] || null;
+        },
+
+        // 获取所有训练记录
+        getAllRecords: function () {
+          const recordsString = localStorage.getItem("trainingRecords");
+          return recordsString ? JSON.parse(recordsString) : {};
+        },
+
+        // 删除训练记录
+        deleteRecord: function (id) {
+          const records = this.getAllRecords();
+          if (records[id]) {
+            delete records[id];
+            localStorage.setItem("trainingRecords", JSON.stringify(records));
+            return true;
+          }
+          return false;
+        },
+      };
+
+      // 状态管理
+      const state = {
+        recordId: null, // 当前记录的ID
+        originalText: "",
+        chunks: [],
+        translations: [],
+        backTranslations: [],
+        currentChunkIndex: 0,
+        currentStep: 1,
+      };
+
+      // DOM 元素
+      const elements = {
+        inputSection: document.getElementById("inputSection"),
+        translationSection: document.getElementById("translationSection"),
+        backTranslationSection: document.getElementById(
+          "backTranslationSection"
+        ),
+        comparisonSection: document.getElementById("comparisonSection"),
+        originalText: document.getElementById("originalText"),
+        startBtn: document.getElementById("startBtn"),
+        translationChunks: document.getElementById("translationChunks"),
+        backTranslationChunks: document.getElementById("backTranslationChunks"),
+        comparisonResults: document.getElementById("comparisonResults"),
+        prevTransBtn: document.getElementById("prevTransBtn"),
+        nextTransBtn: document.getElementById("nextTransBtn"),
+        finishTransBtn: document.getElementById("finishTransBtn"),
+        prevBackBtn: document.getElementById("prevBackBtn"),
+        nextBackBtn: document.getElementById("nextBackBtn"),
+        finishBackBtn: document.getElementById("finishBackBtn"),
+        newSessionBtn: document.getElementById("newSessionBtn"),
+        stepIndicators: [
+          document.getElementById("step1"),
+          document.getElementById("step2"),
+          document.getElementById("step3"),
+          document.getElementById("step4"),
+        ],
+        translationProgress: document.getElementById("translationProgress"),
+        backTranslationProgress: document.getElementById(
+          "backTranslationProgress"
+        ),
+        chunkInfo: document.getElementById("chunkInfo"),
+        backChunkInfo: document.getElementById("backChunkInfo"),
+        historySection: document.getElementById("historySection"),
+        historyList: document.getElementById("historyList"),
+        backToHistoryBtn: document.getElementById("backToHistoryBtn"),
+      };
+
+      // 分割文章为小块
+      function splitTextIntoChunks(text) {
+        // 首先按句子分割
+        const sentences =
+          text.match(/[^.!?]+[.!?]+|\s*\n\s*|\s*\r\n\s*/g) || [];
+
+        const chunks = [];
+        let currentChunk = "";
+        let sentenceCount = 0;
+
+        for (const sentence of sentences) {
+          // 跳过空行
+          if (sentence.trim() === "") continue;
+
+          // 如果是很长的句子，单独作为一个块
+          if (sentence.length > 150) {
+            if (currentChunk) {
+              chunks.push(currentChunk.trim());
+              currentChunk = "";
+              sentenceCount = 0;
+            }
+            chunks.push(sentence.trim());
+            continue;
+          }
+
+          currentChunk += sentence;
+          sentenceCount++;
+
+          // 当累积2-3个短句，或内容已经达到适当长度时，创建一个新块
+          if (sentenceCount >= 2 || currentChunk.length > 150) {
+            chunks.push(currentChunk.trim());
+            currentChunk = "";
+            sentenceCount = 0;
+          }
+        }
+
+        // 添加最后一个块（如果有）
+        if (currentChunk) {
+          chunks.push(currentChunk.trim());
+        }
+
+        return chunks;
+      }
+
+      // 更新进度条和信息
+      function updateProgress(progressBar, infoElement, current, total) {
+        const percentage = (current / total) * 100;
+        progressBar.style.width = `${percentage}%`;
+        infoElement.textContent = `进度: ${current}/${total} (${Math.round(
+          percentage
+        )}%)`;
+      }
+
+      // 切换步骤
+      function switchToStep(step) {
+        state.currentStep = step;
+
+        // 更新步骤指示器
+        elements.stepIndicators.forEach((indicator, index) => {
+          if (index + 1 === step) {
+            indicator.classList.add("active");
+          } else {
+            indicator.classList.remove("active");
+          }
+        });
+
+        // 隐藏所有部分
+        elements.inputSection.classList.add("hidden");
+        elements.translationSection.classList.add("hidden");
+        elements.backTranslationSection.classList.add("hidden");
+        elements.comparisonSection.classList.add("hidden");
+        elements.historySection.classList.add("hidden");
+
+        // 显示当前步骤
+        switch (step) {
+          case 0:
+            elements.historySection.classList.remove("hidden");
+            renderTrainingHistory();
+            break;
+          case 1:
+            elements.inputSection.classList.remove("hidden");
+            break;
+          case 2:
+            elements.translationSection.classList.remove("hidden");
+            renderTranslationChunks();
+            break;
+          case 3:
+            elements.backTranslationSection.classList.remove("hidden");
+            renderBackTranslationChunks();
+            break;
+          case 4:
+            elements.comparisonSection.classList.remove("hidden");
+            renderComparisonResults();
+            break;
+        }
+
+        // 更新导航栏按钮状态
+        updateNavigationBar();
+      }
+
+      // 修改updateNavigationBar函数，防止历史按钮重复添加
+      function updateNavigationBar() {
+        // 根据当前状态判断哪些步骤可以导航
+        const completedTranslation =
+          state.translations.filter((t) => t && t.trim()).length ===
+          state.chunks.length;
+        const completedBackTranslation =
+          state.backTranslations.filter((t) => t && t.trim()).length ===
+          state.chunks.length;
+
+        // 使所有步骤指示器可点击
+        elements.stepIndicators.forEach((indicator, index) => {
+          // 清除之前的事件监听器
+          indicator.replaceWith(indicator.cloneNode(true));
+
+          // 获取新的引用
+          elements.stepIndicators[index] = document.getElementById(
+            `step${index + 1}`
+          );
+
+          const stepNum = index + 1;
+          // 添加条件：步骤1总是可点击；步骤2需要有内容；步骤3需要完成翻译；步骤4需要完成回译
+          if (
+            stepNum === 1 ||
+            (stepNum === 2 && state.chunks.length > 0) ||
+            (stepNum === 3 && completedTranslation) ||
+            (stepNum === 4 && completedBackTranslation)
+          ) {
+            // 可点击的样式
+            elements.stepIndicators[index].style.cursor = "pointer";
+
+            // 添加点击事件
+            elements.stepIndicators[index].addEventListener("click", () => {
+              // 保存当前步骤的数据
+              saveCurrentStepData();
+
+              // 切换到点击的步骤
+              switchToStep(stepNum);
+            });
+          } else {
+            // 不可点击的样式
+            elements.stepIndicators[index].style.cursor = "not-allowed";
+            elements.stepIndicators[index].style.opacity = "0.6";
+          }
+        });
+
+        // 先移除任何已有的历史按钮
+        const existingHistoryStep = document.getElementById("step0");
+        if (existingHistoryStep) {
+          existingHistoryStep.remove();
+        }
+
+        // 添加返回历史记录的选项（如果在步骤1-4）
+        if (state.currentStep >= 1 && state.currentStep <= 4) {
+          const historyStepIndicator = document.createElement("div");
+          historyStepIndicator.id = "step0";
+          historyStepIndicator.className = "step";
+          historyStepIndicator.textContent = "历史";
+          historyStepIndicator.style.cursor = "pointer";
+          historyStepIndicator.addEventListener("click", () => {
+            saveCurrentTraining();
+            switchToStep(0);
+          });
+
+          // 添加到导航栏的最前面
+          const stepIndicatorContainer =
+            document.querySelector(".step-indicator");
+          stepIndicatorContainer.insertBefore(
+            historyStepIndicator,
+            stepIndicatorContainer.firstChild
+          );
+        }
+      }
+
+      // 保存当前步骤的数据
+      function saveCurrentStepData() {
+        // 根据当前步骤保存数据
+        switch (state.currentStep) {
+          case 1:
+            state.originalText = elements.originalText.value.trim();
+            break;
+          case 2:
+            // 保存当前翻译
+            const translationInput =
+              document.querySelector(".translation-input");
+            if (translationInput) {
+              state.translations[state.currentChunkIndex] =
+                translationInput.value;
+            }
+            break;
+          case 3:
+            // 保存当前回译
+            const backTranslationInput = document.querySelector(
+              ".back-translation-input"
+            );
+            if (backTranslationInput) {
+              state.backTranslations[state.currentChunkIndex] =
+                backTranslationInput.value;
+            }
+            break;
+        }
+      }
+
+      // 渲染翻译界面
+      function renderTranslationChunks() {
+        const chunkIndex = state.currentChunkIndex;
+        const chunk = state.chunks[chunkIndex];
+
+        elements.translationChunks.innerHTML = `
+                <div class="chunk-counter">${chunkIndex + 1}/${
+          state.chunks.length
+        }</div>
+                <div class="text-chunk">${chunk}</div>
+                <textarea 
+                    class="translation-input mb-2" 
+                    rows="4" 
+                    placeholder="请输入此段的中文翻译..."
+                >${state.translations[chunkIndex] || ""}</textarea>
+            `;
+
+        // 更新进度条
+        updateProgress(
+          elements.translationProgress,
+          elements.chunkInfo,
+          chunkIndex + 1,
+          state.chunks.length
+        );
+
+        // 更新按钮状态
+        elements.prevTransBtn.disabled = chunkIndex === 0;
+        elements.nextTransBtn.textContent =
+          chunkIndex === state.chunks.length - 1 ? "完成" : "下一段";
+
+        // 显示或隐藏"完成翻译"按钮
+        if (
+          state.translations.filter((t) => t && t.trim()).length ===
+          state.chunks.length
+        ) {
+          elements.finishTransBtn.classList.remove("hidden");
+        } else {
+          elements.finishTransBtn.classList.add("hidden");
+        }
+
+        // 聚焦到文本框
+        document.querySelector(".translation-input").focus();
+      }
+
+      // 渲染回译界面
+      function renderBackTranslationChunks() {
+        const chunkIndex = state.currentChunkIndex;
+        const originalChunk = state.chunks[chunkIndex];
+        const translation = state.translations[chunkIndex];
+
+        elements.backTranslationChunks.innerHTML = `
+                <div class="chunk-counter">${chunkIndex + 1}/${
+          state.chunks.length
+        }</div>
+                <div class="mb-2 text-sm text-gray-500">您的中文翻译：</div>
+                <div class="text-chunk">${translation}</div>
+                <div class="mb-2 text-sm text-gray-500">请将上面的中文回译为英文：</div>
+                <textarea 
+                    class="back-translation-input" 
+                    rows="4" 
+                    placeholder="请输入回译的英文..."
+                >${state.backTranslations[chunkIndex] || ""}</textarea>
+            `;
+
+        // 更新进度条
+        updateProgress(
+          elements.backTranslationProgress,
+          elements.backChunkInfo,
+          chunkIndex + 1,
+          state.chunks.length
+        );
+
+        // 更新按钮状态
+        elements.prevBackBtn.disabled = chunkIndex === 0;
+        elements.nextBackBtn.textContent =
+          chunkIndex === state.chunks.length - 1 ? "完成" : "下一段";
+
+        // 显示或隐藏"完成回译"按钮
+        if (
+          state.backTranslations.filter((t) => t && t.trim()).length ===
+          state.chunks.length
+        ) {
+          elements.finishBackBtn.classList.remove("hidden");
+        } else {
+          elements.finishBackBtn.classList.add("hidden");
+        }
+
+        // 聚焦到文本框
+        document.querySelector(".back-translation-input").focus();
+      }
+
+      // 渲染对比结果
+      function renderComparisonResults() {
+        // 将原始文本和回译文本按句子拆分
+        const originalSentences = extractSentences(state.originalText);
+        const backTranslationText = state.backTranslations.join(" ");
+        const backTranslationSentences = extractSentences(backTranslationText);
+
+        // 添加调试信息
+        console.log("原文句子数:", originalSentences.length);
+        console.log("回译句子数:", backTranslationSentences.length);
+
+        let html = "";
+
+        // 确定要比较的句子数量
+        const sentenceCount = Math.min(
+          originalSentences.length,
+          backTranslationSentences.length
+        );
+
+        // 如果没有句子可比较，显示提示信息
+        if (sentenceCount === 0) {
+          html =
+            '<div class="p-4 text-center text-gray-500">未找到可比较的内容。请确保训练已完成。</div>';
+        } else {
+          for (let i = 0; i < sentenceCount; i++) {
+            const originalSentence = originalSentences[i].trim();
+            const backSentence = backTranslationSentences[i]
+              ? backTranslationSentences[i].trim()
+              : "";
+
+            html += `
+              <div class="comparison-item">
+                <div class="mb-1 text-sm font-medium">句子 ${i + 1}</div>
+                <div class="mb-2">
+                  <span class="text-sm text-gray-500">原文：</span>
+                  <span>${originalSentence}</span>
+                </div>
+                <div>
+                  <span class="text-sm text-gray-500">回译：</span>
+                  <span>${backSentence}</span>
+                </div>
+              </div>
+            `;
+          }
+        }
+
+        elements.comparisonResults.innerHTML = html;
+      }
+
+      // 提取句子
+      function extractSentences(text) {
+        if (!text || typeof text !== "string") {
+          console.warn("extractSentences: 无效的文本", text);
+          return [];
+        }
+
+        // 更robust的句子提取正则表达式
+        const sentences = text.match(/[^.!?]+[.!?]+/g) || [];
+
+        // 移除空白项
+        return sentences.filter((sentence) => sentence.trim().length > 0);
+      }
+
+      // 事件处理函数
+
+      // 开始训练
+      elements.startBtn.addEventListener("click", () => {
+        const text = elements.originalText.value.trim();
+
+        if (!text) {
+          alert("请输入英文文章内容");
+          return;
+        }
+
+        // 创建新训练
+        state.recordId = null; // 重置记录ID，将创建新记录
+        state.originalText = text;
+        state.chunks = splitTextIntoChunks(text);
+        state.translations = new Array(state.chunks.length).fill("");
+        state.backTranslations = new Array(state.chunks.length).fill("");
+        state.currentChunkIndex = 0;
+
+        saveCurrentStepData();
+        saveCurrentTraining(); // 保存新训练记录
+        switchToStep(2);
+      });
+
+      // 快速演示
+      document.getElementById("demoBtn").addEventListener("click", () => {
+        // 填充演示文本
+        elements.originalText.value = demoText;
+
+        // 设置状态
+        state.originalText = demoText;
+        state.chunks = splitTextIntoChunks(demoText);
+        state.translations = [...demoTranslations];
+        state.backTranslations = [...demoBackTranslations];
+        state.currentChunkIndex = 0;
+
+        // 直接跳到对比分析结果页面
+        switchToStep(4);
+      });
+
+      // 翻译阶段 - 上一段
+      elements.prevTransBtn.addEventListener("click", () => {
+        // 保存当前翻译
+        const translationInput = document.querySelector(".translation-input");
+        state.translations[state.currentChunkIndex] = translationInput.value;
+
+        // 移动到上一段
+        state.currentChunkIndex--;
+        renderTranslationChunks();
+      });
+
+      // 翻译阶段 - 下一段
+      elements.nextTransBtn.addEventListener("click", () => {
+        // 保存当前翻译
+        const translationInput = document.querySelector(".translation-input");
+        state.translations[state.currentChunkIndex] = translationInput.value;
+
+        // 移动到下一段或完成
+        if (state.currentChunkIndex < state.chunks.length - 1) {
+          state.currentChunkIndex++;
+          renderTranslationChunks();
+        } else {
+          // 检查所有翻译是否已完成
+          const allTranslated = state.translations.every((t) => t && t.trim());
+          if (allTranslated) {
+            state.currentChunkIndex = 0;
+            switchToStep(3);
+          } else {
+            alert("请完成所有段落的翻译");
+          }
+        }
+
+        // 添加自动保存
+        saveCurrentTraining();
+      });
+
+      // 完成翻译
+      elements.finishTransBtn.addEventListener("click", () => {
+        // 保存当前翻译
+        const translationInput = document.querySelector(".translation-input");
+        state.translations[state.currentChunkIndex] = translationInput.value;
+
+        // 检查所有翻译是否已完成
+        const allTranslated = state.translations.every((t) => t && t.trim());
+        if (allTranslated) {
+          state.currentChunkIndex = 0;
+          switchToStep(3);
+        } else {
+          alert("请完成所有段落的翻译");
+        }
+      });
+
+      // 回译阶段 - 上一段
+      elements.prevBackBtn.addEventListener("click", () => {
+        // 保存当前回译
+        const backTranslationInput = document.querySelector(
+          ".back-translation-input"
+        );
+        state.backTranslations[state.currentChunkIndex] =
+          backTranslationInput.value;
+
+        // 移动到上一段
+        state.currentChunkIndex--;
+        renderBackTranslationChunks();
+      });
+
+      // 回译阶段 - 下一段
+      elements.nextBackBtn.addEventListener("click", () => {
+        // 保存当前回译
+        const backTranslationInput = document.querySelector(
+          ".back-translation-input"
+        );
+        state.backTranslations[state.currentChunkIndex] =
+          backTranslationInput.value;
+
+        // 移动到下一段或完成
+        if (state.currentChunkIndex < state.chunks.length - 1) {
+          state.currentChunkIndex++;
+          renderBackTranslationChunks();
+        } else {
+          // 检查所有回译是否已完成
+          const allBackTranslated = state.backTranslations.every(
+            (t) => t && t.trim()
+          );
+          if (allBackTranslated) {
+            switchToStep(4);
+          } else {
+            alert("请完成所有段落的回译");
+          }
+        }
+      });
+
+      // 完成回译
+      elements.finishBackBtn.addEventListener("click", () => {
+        // 保存当前回译
+        const backTranslationInput = document.querySelector(
+          ".back-translation-input"
+        );
+        state.backTranslations[state.currentChunkIndex] =
+          backTranslationInput.value;
+
+        // 检查所有回译是否已完成
+        const allBackTranslated = state.backTranslations.every(
+          (t) => t && t.trim()
+        );
+        if (allBackTranslated) {
+          switchToStep(4);
+        } else {
+          alert("请完成所有段落的回译");
+        }
+
+        // 标记为已完成
+        saveCurrentTraining(true);
+      });
+
+      // 开始新的训练
+      elements.newSessionBtn.addEventListener("click", () => {
+        // 保存当前训练为已完成
+        saveCurrentTraining(true);
+
+        // 重置状态
+        state.recordId = null;
+        state.originalText = "";
+        state.chunks = [];
+        state.translations = [];
+        state.backTranslations = [];
+        state.currentChunkIndex = 0;
+
+        elements.originalText.value = "";
+
+        // 跳转到历史页面
+        switchToStep(0);
+      });
+
+      // 在页面加载时自动加载历史记录列表
+      document.addEventListener("DOMContentLoaded", () => {
+        // 添加历史记录按钮到页面顶部
+        const headerTitle = document.querySelector("h1");
+        const historyButton = document.createElement("button");
+        historyButton.className =
+          "btn absolute right-4 top-4 text-sm py-1 px-2";
+        historyButton.textContent = "训练历史";
+        historyButton.addEventListener("click", () => {
+          saveCurrentTraining(); // 保存当前进度
+          switchToStep(0);
+        });
+        headerTitle.parentNode.style.position = "relative";
+        headerTitle.parentNode.appendChild(historyButton);
+
+        updateNavigationBar();
+      });
+
+      // 保存当前训练状态
+      function saveCurrentTraining(completed = false) {
+        // 创建新记录ID或使用现有ID
+        if (!state.recordId) {
+          state.recordId = "record_" + Date.now();
+        }
+
+        // 根据当前步骤保存数据
+        saveCurrentStepData();
+
+        // 创建训练记录对象
+        const record = {
+          id: state.recordId,
+          title: `训练 ${new Date().toLocaleString()}`,
+          date: new Date().toISOString(),
+          originalText: state.originalText,
+          chunks: state.chunks,
+          translations: state.translations,
+          backTranslations: state.backTranslations,
+          currentStep: state.currentStep,
+          currentChunkIndex: state.currentChunkIndex,
+          completed: completed,
+        };
+
+        // 保存到本地存储
+        storage.saveTrainingRecord(record);
+
+        return record;
+      }
+
+      // 加载训练记录
+      function loadTrainingRecord(id) {
+        const record = storage.getRecord(id);
+        if (!record) return false;
+
+        // 更新状态
+        state.recordId = record.id;
+        state.originalText = record.originalText;
+        state.chunks = record.chunks || [];
+        state.translations = record.translations || [];
+        state.backTranslations = record.backTranslations || [];
+        state.currentChunkIndex = record.currentChunkIndex || 0;
+        state.currentStep = record.currentStep || 1;
+
+        // 更新输入框值
+        elements.originalText.value = record.originalText;
+
+        // 切换到正确的步骤
+        switchToStep(record.currentStep);
+
+        return true;
+      }
+
+      // 渲染训练历史列表
+      function renderTrainingHistory() {
+        const records = storage.getAllRecords();
+        const recordIds = Object.keys(records).sort((a, b) => {
+          return new Date(records[b].date) - new Date(records[a].date);
+        });
+
+        if (recordIds.length === 0) {
+          elements.historyList.innerHTML =
+            '<p class="text-center py-4 text-gray-500">没有训练记录</p>';
+          return;
+        }
+
+        let html = "";
+
+        recordIds.forEach((id) => {
+          const record = records[id];
+          const date = new Date(record.date).toLocaleString();
+          const progress = calculateTrainingProgress(record);
+          const textPreview =
+            record.originalText.slice(0, 60) +
+            (record.originalText.length > 60 ? "..." : "");
+
+          html += `
+            <div class="border-b border-gray-200 dark:border-gray-700 py-3" data-record-id="${id}">
+              <div class="flex justify-between items-start">
+                <div>
+                  <h3 class="font-medium">${record.title}</h3>
+                  <p class="text-sm text-gray-500">${date}</p>
+                  <p class="text-sm mt-1">${textPreview}</p>
+                </div>
+                <div class="flex">
+                  <button class="continue-btn btn bg-green-600 mr-2 text-sm py-1 px-2" data-id="${id}">
+                    ${record.completed ? "查看" : "继续"}
+                  </button>
+                  <button class="export-btn btn bg-blue-600 mr-2 text-sm py-1 px-2" data-id="${id}">
+                    导出
+                  </button>
+                  <button class="delete-btn btn bg-red-600 text-sm py-1 px-2" data-id="${id}">删除</button>
+                </div>
+              </div>
+              <div class="mt-2">
+                <div class="text-xs text-gray-500 mb-1">进度: ${progress}%</div>
+                <div class="progress-bar-container" style="height: 4px;">
+                  <div class="progress-bar" style="width: ${progress}%"></div>
+                </div>
+              </div>
+            </div>
+          `;
+        });
+
+        elements.historyList.innerHTML = html;
+
+        // 添加事件监听器
+        document.querySelectorAll(".continue-btn").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const id = btn.getAttribute("data-id");
+            loadTrainingRecord(id);
+          });
+        });
+
+        // 添加导出按钮事件监听器
+        document.querySelectorAll(".export-btn").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const id = btn.getAttribute("data-id");
+            const record = storage.getRecord(id);
+            if (record) {
+              showExportPreview(record);
+            }
+          });
+        });
+
+        document.querySelectorAll(".delete-btn").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const id = btn.getAttribute("data-id");
+            if (confirm("确定要删除这条训练记录吗？")) {
+              storage.deleteRecord(id);
+              renderTrainingHistory();
+            }
+          });
+        });
+      }
+
+      // 计算训练进度百分比
+      function calculateTrainingProgress(record) {
+        if (record.completed) return 100;
+
+        const totalSteps = 3; // 总共3个步骤（不包括初始输入）
+        let progress = 0;
+
+        if (record.currentStep > 1) {
+          progress += (record.currentStep - 1) * 33.3; // 每个完成的步骤占33.3%
+        }
+
+        // 计算当前步骤内的进度
+        if (record.chunks.length > 0) {
+          const stepProgress =
+            (record.currentChunkIndex / record.chunks.length) * 33.3;
+          progress += stepProgress;
+        }
+
+        return Math.min(Math.round(progress), 99); // 仅在标记为completed时才显示100%
+      }
+
+      // 新建训练按钮事件
+      document
+        .getElementById("newTrainingBtn")
+        .addEventListener("click", () => {
+          state.recordId = null;
+          state.originalText = "";
+          state.chunks = [];
+          state.translations = [];
+          state.backTranslations = [];
+          state.currentChunkIndex = 0;
+
+          elements.originalText.value = "";
+          switchToStep(1);
+        });
+
+      // 在每次切换步骤时自动保存进度
+      const originalSwitchToStep = switchToStep;
+      switchToStep = function (step) {
+        // 如果从任何状态切换，先保存当前进度
+        if (state.currentStep >= 1 && state.currentStep <= 4) {
+          saveCurrentTraining();
+        }
+
+        // 调用原始函数
+        originalSwitchToStep(step);
+      };
+
+      // 添加导出相关函数
+
+      // 格式化导出内容
+      function formatExportContent(specificRecord = null) {
+        const dateStr = new Date().toLocaleDateString();
+
+        // 使用当前状态或指定的记录
+        const record = specificRecord || {
+          originalText: state.originalText,
+          chunks: state.chunks,
+          translations: state.translations,
+          backTranslations: state.backTranslations,
+        };
+
+        // 准备导出的三个部分内容
+        let translationPart = `翻译（${dateStr}）：\n`;
+        let backTranslationPart = `\n\n回译（${dateStr}）：\n`;
+        let comparisonPart = `\n\n前后逐句对比：\n`;
+
+        // 合并所有块用于提取原始句子
+        const originalText = record.originalText;
+        const backTranslationText = record.backTranslations.join(" ");
+
+        // 提取所有句子
+        const originalSentenceArray = extractSentences(originalText);
+        const backTranslationSentenceArray =
+          extractSentences(backTranslationText);
+
+        // 创建翻译部分 - 按块组织
+        for (let i = 0; i < record.chunks.length; i++) {
+          translationPart +=
+            record.chunks[i] + "\n" + record.translations[i] + "\n";
+        }
+
+        // 创建回译部分 - 按块组织
+        for (let i = 0; i < record.chunks.length; i++) {
+          backTranslationPart +=
+            record.translations[i] + "\n" + record.backTranslations[i] + "\n";
+        }
+
+        // 创建对比部分 - 按句子组织
+        const sentenceCount = Math.min(
+          originalSentenceArray.length,
+          backTranslationSentenceArray.length
+        );
+        for (let i = 0; i < sentenceCount; i++) {
+          const originalSentence = originalSentenceArray[i].trim();
+          const backSentence = backTranslationSentenceArray[i].trim();
+
+          comparisonPart += originalSentence + "\n" + backSentence + "\n\n";
+        }
+
+        return translationPart + backTranslationPart + comparisonPart;
+      }
+
+      // 导出为txt文件
+      function exportAsTxt(specificRecord = null) {
+        const content = formatExportContent(specificRecord);
+        const filename = `回译训练_${new Date()
+          .toISOString()
+          .slice(0, 10)}.txt`;
+
+        // 创建blob并下载
+        const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = filename;
+        link.click();
+
+        setTimeout(() => URL.revokeObjectURL(url), 100);
+      }
+
+      // 复制到剪贴板
+      function copyToClipboard(specificRecord = null) {
+        const content = formatExportContent(specificRecord);
+
+        // 使用现代clipboard API
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard
+            .writeText(content)
+            .then(() => {
+              showToast("已复制到剪贴板");
+            })
+            .catch((err) => {
+              console.error("复制失败:", err);
+              fallbackCopy(content);
+            });
+        } else {
+          fallbackCopy(content);
+        }
+      }
+
+      // 剪贴板复制的后备方案
+      function fallbackCopy(text) {
+        // 创建临时文本区域
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        textArea.style.position = "fixed";
+        textArea.style.left = "-999999px";
+        textArea.style.top = "-999999px";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+
+        try {
+          const successful = document.execCommand("copy");
+          if (successful) {
+            showToast("已复制到剪贴板");
+          } else {
+            showToast("复制失败，请手动复制");
+          }
+        } catch (err) {
+          console.error("复制失败:", err);
+          showToast("复制失败，请手动复制");
+        }
+
+        document.body.removeChild(textArea);
+      }
+
+      // 显示提示信息
+      function showToast(message) {
+        // 检查是否已存在toast元素
+        let toast = document.getElementById("toast-notification");
+        if (toast) {
+          document.body.removeChild(toast);
+        }
+
+        // 创建新的toast元素
+        toast = document.createElement("div");
+        toast.id = "toast-notification";
+        toast.className =
+          "fixed bottom-4 right-4 bg-gray-800 text-white px-4 py-2 rounded shadow-lg";
+        toast.textContent = message;
+
+        document.body.appendChild(toast);
+
+        // 3秒后移除
+        setTimeout(() => {
+          if (document.body.contains(toast)) {
+            document.body.removeChild(toast);
+          }
+        }, 3000);
+      }
+
+      // 显示导出预览对话框
+      function showExportPreview(specificRecord = null) {
+        // 使用当前状态或指定的记录
+        const record = specificRecord || {
+          originalText: state.originalText,
+          chunks: state.chunks,
+          translations: state.translations,
+          backTranslations: state.backTranslations,
+        };
+
+        // 创建预览对话框
+        const overlay = document.createElement("div");
+        overlay.className =
+          "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50";
+
+        const dialog = document.createElement("div");
+        dialog.className =
+          "bg-white dark:bg-gray-800 rounded-lg p-6 max-w-3xl w-full max-h-[80vh] overflow-auto relative";
+
+        const closeBtn = document.createElement("button");
+        closeBtn.className =
+          "absolute top-2 right-2 text-gray-500 hover:text-gray-700";
+        closeBtn.innerHTML = "&times;";
+        closeBtn.onclick = () => document.body.removeChild(overlay);
+
+        const title = document.createElement("h3");
+        title.className = "text-xl font-bold mb-4 pr-8";
+        title.textContent = "导出预览";
+
+        const content = document.createElement("pre");
+        content.className =
+          "whitespace-pre-wrap text-sm bg-gray-100 dark:bg-gray-700 p-4 rounded max-h-[50vh] overflow-auto";
+        content.textContent = formatExportContent(record);
+
+        const actions = document.createElement("div");
+        actions.className = "flex mt-4 gap-2 justify-end";
+
+        const copyBtn = document.createElement("button");
+        copyBtn.className = "btn bg-blue-500";
+        copyBtn.textContent = "复制内容";
+        copyBtn.onclick = () => {
+          copyToClipboard(record);
+        };
+
+        const downloadBtn = document.createElement("button");
+        downloadBtn.className = "btn";
+        downloadBtn.textContent = "下载TXT文件";
+        downloadBtn.onclick = () => {
+          exportAsTxt(record);
+        };
+
+        actions.appendChild(copyBtn);
+        actions.appendChild(downloadBtn);
+
+        dialog.appendChild(closeBtn);
+        dialog.appendChild(title);
+        dialog.appendChild(content);
+        dialog.appendChild(actions);
+
+        overlay.appendChild(dialog);
+        document.body.appendChild(overlay);
+      }
+
+      // 添加导出按钮事件处理
+      document.getElementById("exportBtn").addEventListener("click", () => {
+        showExportPreview();
+      });
+    </script>
+  </body>
+</html>
