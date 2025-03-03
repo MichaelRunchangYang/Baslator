@@ -375,9 +375,51 @@ Regular practice is the key to success in language learning.`;
 
       // 分割文章为小块
       function splitTextIntoChunks(text) {
+        // 预处理文本，处理常见缩写和特殊情况
+        // 临时替换常见缩写中的点，以防止错误分割
+        const preprocessed = text
+          .replace(/Mr\./g, "Mr_DOT_")
+          .replace(/Mrs\./g, "Mrs_DOT_")
+          .replace(/Ms\./g, "Ms_DOT_")
+          .replace(/Dr\./g, "Dr_DOT_")
+          .replace(/Prof\./g, "Prof_DOT_")
+          .replace(/St\./g, "St_DOT_")
+          .replace(/Jr\./g, "Jr_DOT_")
+          .replace(/Sr\./g, "Sr_DOT_")
+          .replace(/e\.g\./g, "e_DOT_g_DOT_")
+          .replace(/i\.e\./g, "i_DOT_e_DOT_")
+          .replace(/etc\./g, "etc_DOT_")
+          .replace(/vs\./g, "vs_DOT_")
+          .replace(/U\.S\./g, "U_DOT_S_DOT_")
+          .replace(/U\.K\./g, "U_DOT_K_DOT_")
+          .replace(/Ph\.D\./g, "Ph_DOT_D_DOT_")
+          .replace(/p\.\s*\d+/g, (match) => match.replace(".", "_DOT_")) // 处理页码 p.123
+          .replace(/(\d+)\.(\d+)/g, "$1_DOT_$2"); // 处理小数点 3.14
+        
         // 首先按句子分割
-        const sentences =
-          text.match(/[^.!?]+[.!?]+|\s*\n\s*|\s*\r\n\s*/g) || [];
+        const sentencesRaw = preprocessed.match(/[^.!?]+[.!?]+|\s*\n\s*|\s*\r\n\s*/g) || [];
+        
+        // 还原临时替换的缩写
+        const sentences = sentencesRaw.map(sentence => 
+          sentence
+            .replace(/Mr_DOT_/g, "Mr.")
+            .replace(/Mrs_DOT_/g, "Mrs.")
+            .replace(/Ms_DOT_/g, "Ms.")
+            .replace(/Dr_DOT_/g, "Dr.")
+            .replace(/Prof_DOT_/g, "Prof.")
+            .replace(/St_DOT_/g, "St.")
+            .replace(/Jr_DOT_/g, "Jr.")
+            .replace(/Sr_DOT_/g, "Sr.")
+            .replace(/e_DOT_g_DOT_/g, "e.g.")
+            .replace(/i_DOT_e_DOT_/g, "i.e.")
+            .replace(/etc_DOT_/g, "etc.")
+            .replace(/vs_DOT_/g, "vs.")
+            .replace(/U_DOT_S_DOT_/g, "U.S.")
+            .replace(/U_DOT_K_DOT_/g, "U.K.")
+            .replace(/Ph_DOT_D_DOT_/g, "Ph.D.")
+            .replace(/p_DOT_(\d+)/g, "p.$1")
+            .replace(/(\d+)_DOT_(\d+)/g, "$1.$2")
+        );
 
         const chunks = [];
         let currentChunk = "";
@@ -795,8 +837,12 @@ Regular practice is the key to success in language learning.`;
           // 检查所有翻译是否已完成
           const allTranslated = state.translations.every((t) => t && t.trim());
           if (allTranslated) {
-            state.currentChunkIndex = 0;
+            // 先切换步骤，确保当前状态已保存
             switchToStep(3);
+            // 然后再重置索引
+            state.currentChunkIndex = 0;
+            // 重新渲染回译界面
+            renderBackTranslationChunks();
           } else {
             alert("请完成所有段落的翻译");
           }
@@ -815,8 +861,12 @@ Regular practice is the key to success in language learning.`;
         // 检查所有翻译是否已完成
         const allTranslated = state.translations.every((t) => t && t.trim());
         if (allTranslated) {
-          state.currentChunkIndex = 0;
+          // 先切换步骤，确保当前状态已保存
           switchToStep(3);
+          // 然后再重置索引
+          state.currentChunkIndex = 0;
+          // 重新渲染回译界面
+          renderBackTranslationChunks();
         } else {
           alert("请完成所有段落的翻译");
         }
@@ -1001,8 +1051,13 @@ Regular practice is the key to success in language learning.`;
           html += `
             <div class="border-b border-gray-200 dark:border-gray-700 py-3" data-record-id="${id}">
               <div class="flex justify-between items-start">
-                <div>
-                  <h3 class="font-medium">${record.title}</h3>
+                <div class="flex-grow mr-2">
+                  <div class="flex items-center">
+                    <h3 class="font-medium record-title" data-id="${id}">${record.title}</h3>
+                    <button class="rename-btn ml-2 text-gray-500 hover:text-primary-color" data-id="${id}">
+                      <small>✏️ 重命名</small>
+                    </button>
+                  </div>
                   <p class="text-sm text-gray-500">${date}</p>
                   <p class="text-sm mt-1">${textPreview}</p>
                 </div>
@@ -1044,6 +1099,14 @@ Regular practice is the key to success in language learning.`;
             if (record) {
               showExportPreview(record);
             }
+          });
+        });
+
+        // 添加重命名按钮事件监听器
+        document.querySelectorAll(".rename-btn").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const id = btn.getAttribute("data-id");
+            showRenameDialog(id);
           });
         });
 
@@ -1097,7 +1160,10 @@ Regular practice is the key to success in language learning.`;
       // 在每次切换步骤时自动保存进度
       const originalSwitchToStep = switchToStep;
       switchToStep = function (step) {
-        // 如果从任何状态切换，先保存当前进度
+        // 如果从任何状态切换，先保存当前输入的数据
+        saveCurrentStepData();
+        
+        // 然后保存整个训练记录
         if (state.currentStep >= 1 && state.currentStep <= 4) {
           saveCurrentTraining();
         }
@@ -1163,10 +1229,24 @@ Regular practice is the key to success in language learning.`;
 
       // 导出为txt文件
       function exportAsTxt(specificRecord = null) {
-        const content = formatExportContent(specificRecord);
-        const filename = `回译训练_${new Date()
-          .toISOString()
-          .slice(0, 10)}.txt`;
+        const record = specificRecord || {
+          title: `回译训练_${new Date().toISOString().slice(0, 10)}`,
+          originalText: state.originalText,
+          chunks: state.chunks,
+          translations: state.translations,
+          backTranslations: state.backTranslations,
+        };
+        
+        const content = formatExportContent(record);
+        
+        // 使用记录标题作为文件名，添加日期以避免重复
+        let filename = record.title;
+        
+        // 确保文件名是有效的，去除非法字符
+        filename = filename.replace(/[<>:"/\\|?*]/g, "_");
+        
+        // 添加日期后缀和扩展名
+        filename = `${filename}_${new Date().toISOString().slice(0, 10)}.txt`;
 
         // 创建blob并下载
         const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
@@ -1319,6 +1399,83 @@ Regular practice is the key to success in language learning.`;
       document.getElementById("exportBtn").addEventListener("click", () => {
         showExportPreview();
       });
+
+      // 显示重命名对话框
+      function showRenameDialog(recordId) {
+        const record = storage.getRecord(recordId);
+        if (!record) return;
+
+        // 创建对话框
+        const overlay = document.createElement("div");
+        overlay.className = "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50";
+
+        const dialog = document.createElement("div");
+        dialog.className = "bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full";
+
+        const title = document.createElement("h3");
+        title.className = "text-xl font-bold mb-4";
+        title.textContent = "重命名训练记录";
+
+        const inputGroup = document.createElement("div");
+        inputGroup.className = "mb-4";
+        
+        const input = document.createElement("input");
+        input.type = "text";
+        input.className = "w-full p-2 border rounded";
+        input.value = record.title;
+        input.placeholder = "输入新名称";
+        
+        inputGroup.appendChild(input);
+        
+        const actions = document.createElement("div");
+        actions.className = "flex justify-end gap-2";
+        
+        const cancelBtn = document.createElement("button");
+        cancelBtn.className = "btn bg-gray-500";
+        cancelBtn.textContent = "取消";
+        cancelBtn.onclick = () => document.body.removeChild(overlay);
+        
+        const saveBtn = document.createElement("button");
+        saveBtn.className = "btn";
+        saveBtn.textContent = "保存";
+        saveBtn.onclick = () => {
+          const newTitle = input.value.trim();
+          if (newTitle) {
+            // 更新记录标题
+            record.title = newTitle;
+            storage.saveTrainingRecord(record);
+            
+            // 如果当前正在编辑这个记录，也更新state
+            if (state.recordId === recordId) {
+              state.recordTitle = newTitle;
+            }
+            
+            // 刷新历史列表
+            renderTrainingHistory();
+            
+            // 关闭对话框
+            document.body.removeChild(overlay);
+            
+            // 显示成功提示
+            showToast("已重命名训练记录");
+          } else {
+            alert("请输入有效的名称");
+          }
+        };
+        
+        actions.appendChild(cancelBtn);
+        actions.appendChild(saveBtn);
+        
+        dialog.appendChild(title);
+        dialog.appendChild(inputGroup);
+        dialog.appendChild(actions);
+        
+        overlay.appendChild(dialog);
+        document.body.appendChild(overlay);
+        
+        // 聚焦到输入框
+        setTimeout(() => input.focus(), 100);
+      }
     </script>
   </body>
 </html>
