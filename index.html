@@ -373,10 +373,9 @@ Regular practice is the key to success in language learning.`;
         backToHistoryBtn: document.getElementById("backToHistoryBtn"),
       };
 
-      // 分割文章为小块
+      // 分割文章为小块，优化处理缩写
       function splitTextIntoChunks(text) {
-        // 预处理文本，处理常见缩写和特殊情况
-        // 临时替换常见缩写中的点，以防止错误分割
+        // 预处理文本，处理常见缩写
         const preprocessed = text
           .replace(/Mr\./g, "Mr_DOT_")
           .replace(/Mrs\./g, "Mrs_DOT_")
@@ -760,16 +759,53 @@ Regular practice is the key to success in language learning.`;
 
       // 提取句子
       function extractSentences(text) {
-        if (!text || typeof text !== "string") {
-          console.warn("extractSentences: 无效的文本", text);
-          return [];
-        }
-
-        // 更robust的句子提取正则表达式
-        const sentences = text.match(/[^.!?]+[.!?]+/g) || [];
-
-        // 移除空白项
-        return sentences.filter((sentence) => sentence.trim().length > 0);
+        if (!text) return [];
+        
+        // 预处理文本，处理常见缩写
+        const preprocessed = text
+          .replace(/Mr\./g, "Mr_DOT_")
+          .replace(/Mrs\./g, "Mrs_DOT_")
+          .replace(/Ms\./g, "Ms_DOT_")
+          .replace(/Dr\./g, "Dr_DOT_")
+          .replace(/Prof\./g, "Prof_DOT_")
+          .replace(/St\./g, "St_DOT_")
+          .replace(/Jr\./g, "Jr_DOT_")
+          .replace(/Sr\./g, "Sr_DOT_")
+          .replace(/e\.g\./g, "e_DOT_g_DOT_")
+          .replace(/i\.e\./g, "i_DOT_e_DOT_")
+          .replace(/etc\./g, "etc_DOT_")
+          .replace(/vs\./g, "vs_DOT_")
+          .replace(/U\.S\./g, "U_DOT_S_DOT_")
+          .replace(/U\.K\./g, "U_DOT_K_DOT_")
+          .replace(/Ph\.D\./g, "Ph_DOT_D_DOT_")
+          .replace(/p\.\s*\d+/g, (match) => match.replace(".", "_DOT_")) // 处理页码 p.123
+          .replace(/(\d+)\.(\d+)/g, "$1_DOT_$2"); // 处理小数点 3.14
+        
+        // 按句子分割
+        const sentencesRaw = preprocessed.match(/[^.!?]+[.!?]+|\s*\n\s*|\s*\r\n\s*/g) || [];
+        
+        // 还原临时替换的缩写
+        return sentencesRaw.map(sentence => 
+          sentence
+            .replace(/Mr_DOT_/g, "Mr.")
+            .replace(/Mrs_DOT_/g, "Mrs.")
+            .replace(/Ms_DOT_/g, "Ms.")
+            .replace(/Dr_DOT_/g, "Dr.")
+            .replace(/Prof_DOT_/g, "Prof.")
+            .replace(/St_DOT_/g, "St.")
+            .replace(/Jr_DOT_/g, "Jr.")
+            .replace(/Sr_DOT_/g, "Sr.")
+            .replace(/e_DOT_g_DOT_/g, "e.g.")
+            .replace(/i_DOT_e_DOT_/g, "i.e.")
+            .replace(/etc_DOT_/g, "etc.")
+            .replace(/vs_DOT_/g, "vs.")
+            .replace(/U_DOT_S_DOT_/g, "U.S.")
+            .replace(/U_DOT_K_DOT_/g, "U.K.")
+            .replace(/Ph_DOT_D_DOT_/g, "Ph.D.")
+            .replace(/p_DOT_(\d+)/g, "p.$1")
+            .replace(/(\d+)_DOT_(\d+)/g, "$1.$2")
+            .trim()
+        );
       }
 
       // 事件处理函数
@@ -1032,13 +1068,24 @@ Regular practice is the key to success in language learning.`;
           return new Date(records[b].date) - new Date(records[a].date);
         });
 
+        // 添加导入按钮
+        let html = `
+          <div class="mb-4 text-right">
+            <label for="importFile" class="btn bg-purple-600 cursor-pointer">
+              <span>导入训练记录</span>
+              <input type="file" id="importFile" accept=".txt" class="hidden" />
+            </label>
+          </div>
+        `;
+
         if (recordIds.length === 0) {
-          elements.historyList.innerHTML =
-            '<p class="text-center py-4 text-gray-500">没有训练记录</p>';
+          html += '<p class="text-center py-4 text-gray-500">没有训练记录</p>';
+          elements.historyList.innerHTML = html;
+          
+          // 添加导入文件事件监听器
+          setupImportListener();
           return;
         }
-
-        let html = "";
 
         recordIds.forEach((id) => {
           const record = records[id];
@@ -1119,6 +1166,9 @@ Regular practice is the key to success in language learning.`;
             }
           });
         });
+
+        // 添加导入文件事件监听器
+        setupImportListener();
       }
 
       // 计算训练进度百分比
@@ -1475,6 +1525,368 @@ Regular practice is the key to success in language learning.`;
         
         // 聚焦到输入框
         setTimeout(() => input.focus(), 100);
+      }
+
+      // 设置导入按钮事件监听器
+      function setupImportListener() {
+        const importFileInput = document.getElementById("importFile");
+        if (importFileInput) {
+          importFileInput.addEventListener("change", handleFileImport);
+        }
+      }
+
+      // 解析导入的内容 - 更新逻辑更加健壮
+      function parseImportedContent(content) {
+        // 添加调试信息
+        console.log("开始解析导入内容");
+        console.log("内容长度:", content.length);
+        
+        // 尝试识别三个部分
+        let translationPart = "";
+        let backTranslationPart = "";
+        let comparisonPart = "";
+        
+        // 首先，确保内容不为空
+        if (!content || content.trim().length === 0) {
+          console.error("导入内容为空");
+          return null;
+        }
+        
+        // 寻找分隔标记
+        const translationMatch = content.match(/^翻译.*?：\n/);
+        const backTranslationMatch = content.match(/\n\n回译.*?：\n/);
+        const comparisonMatch = content.match(/\n\n前后逐句对比.*?：\n/);
+        
+        console.log("匹配结果:", {
+          trans: !!translationMatch,
+          backTrans: !!backTranslationMatch,
+          comparison: !!comparisonMatch
+        });
+        
+        // 如果找不到必要的分隔标记，尝试一种简化的解析方法
+        if (!translationMatch || !backTranslationMatch) {
+          console.log("无法找到标准格式标记，尝试简化解析");
+          return parseSimplifiedContent(content);
+        }
+        
+        // 提取三个部分
+        const transStart = translationMatch.index + translationMatch[0].length;
+        const backTransStart = backTranslationMatch.index + backTranslationMatch[0].length;
+        const comparisonStart = comparisonMatch ? comparisonMatch.index + comparisonMatch[0].length : content.length;
+        
+        translationPart = content.substring(transStart, backTranslationMatch.index);
+        backTranslationPart = content.substring(backTransStart, comparisonMatch ? comparisonMatch.index : content.length);
+        
+        console.log("分割部分长度:", {
+          trans: translationPart.length,
+          backTrans: backTranslationPart.length
+        });
+        
+        // 解析翻译部分，提取原文块和翻译
+        const chunks = [];
+        const translations = [];
+        
+        const translationLines = translationPart.split("\n");
+        for (let i = 0; i < translationLines.length; i += 2) {
+          if (i + 1 < translationLines.length) {
+            const chunk = translationLines[i].trim();
+            const translation = translationLines[i + 1].trim();
+            
+            if (chunk && translation) {
+              chunks.push(chunk);
+              translations.push(translation);
+            }
+          }
+        }
+        
+        // 解析回译部分，提取回译文本
+        const backTranslations = [];
+        const backTranslationLines = backTranslationPart.split("\n");
+        
+        let currentTranslationIndex = 0;
+        for (let i = 0; i < backTranslationLines.length; i++) {
+          const line = backTranslationLines[i].trim();
+          
+          // 跳过空行
+          if (!line) continue;
+          
+          // 如果这一行与翻译中的某一行匹配，则下一行应该是对应的回译
+          if (i + 1 < backTranslationLines.length && translations.includes(line)) {
+            const backTranslation = backTranslationLines[i + 1].trim();
+            if (backTranslation) {
+              backTranslations.push(backTranslation);
+              i++; // 跳过下一行，因为已经处理过了
+            }
+          }
+        }
+        
+        // 如果上面的方法没有找到任何回译，尝试简单的偶数行提取方法
+        if (backTranslations.length === 0) {
+          for (let i = 1; i < backTranslationLines.length; i += 2) {
+            if (i < backTranslationLines.length) {
+              const backTranslation = backTranslationLines[i].trim();
+              if (backTranslation) {
+                backTranslations.push(backTranslation);
+              }
+            }
+          }
+        }
+        
+        console.log("解析结果:", {
+          chunks: chunks.length,
+          translations: translations.length,
+          backTranslations: backTranslations.length
+        });
+        
+        // 确保回译数组长度与翻译数组长度一致，未完成的部分用空字符串填充
+        while (backTranslations.length < chunks.length) {
+          backTranslations.push(""); // 未完成的回译用空字符串填充
+        }
+        
+        // 确保所有数组长度一致
+        const minLength = Math.min(chunks.length, translations.length, backTranslations.length);
+        
+        if (minLength === 0) {
+          console.error("无法从内容中提取有效数据");
+          return null;
+        }
+        
+        // 截取相同长度
+        const finalChunks = chunks.slice(0, minLength);
+        const finalTranslations = translations.slice(0, minLength);
+        const finalBackTranslations = backTranslations.slice(0, minLength);
+        
+        // 合并原文块以获得完整原文
+        const originalText = finalChunks.join(" ");
+        
+        return {
+          originalText,
+          chunks: finalChunks,
+          translations: finalTranslations,
+          backTranslations: finalBackTranslations
+        };
+      }
+
+      // 尝试使用简化方法解析内容
+      function parseSimplifiedContent(content) {
+        console.log("使用简化方法解析内容");
+        
+        // 按行分割
+        const lines = content.split("\n").filter(line => line.trim().length > 0);
+        
+        if (lines.length < 6) { // 至少需要2组数据，每组3行
+          console.error("行数不足，无法解析");
+          return null;
+        }
+        
+        const chunks = [];
+        const translations = [];
+        const backTranslations = [];
+        
+        // 尝试识别模式
+        // 假设文件中的内容是按块组织的：原文、翻译、回译，以及可能的空行
+        for (let i = 0; i < lines.length - 2; i++) {
+          const potentialChunk = lines[i].trim();
+          const potentialTranslation = lines[i+1].trim();
+          const potentialBackTranslation = lines[i+2].trim();
+          
+          // 检查这三行是否形成有效的数据组
+          // 原文应该包含英文字符，翻译应该包含中文字符，回译应该包含英文字符
+          const hasEnglish = (text) => /[a-zA-Z]/.test(text);
+          const hasChinese = (text) => /[\u4e00-\u9fa5]/.test(text);
+          
+          if (hasEnglish(potentialChunk) && hasChinese(potentialTranslation) && hasEnglish(potentialBackTranslation)) {
+            chunks.push(potentialChunk);
+            translations.push(potentialTranslation);
+            backTranslations.push(potentialBackTranslation);
+            i += 2; // 跳过已处理的行
+          }
+        }
+        
+        console.log("简化解析结果:", {
+          chunks: chunks.length,
+          translations: translations.length,
+          backTranslations: backTranslations.length
+        });
+        
+        if (chunks.length === 0) {
+          console.error("简化解析无法提取有效数据");
+          return null;
+        }
+        
+        // 合并原文块以获得完整原文
+        const originalText = chunks.join(" ");
+        
+        return {
+          originalText,
+          chunks,
+          translations,
+          backTranslations
+        };
+      }
+
+      // 处理文件导入 - 添加更多错误处理和用户反馈
+      function handleFileImport(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        // 显示加载指示器
+        showToast("正在解析文件...");
+
+        const reader = new FileReader();
+        
+        reader.onload = function(e) {
+          try {
+            const content = e.target.result;
+            console.log("文件已读取，长度:", content.length);
+            
+            // 显示文件内容的前200个字符以便调试
+            console.log("文件内容预览:", content.substring(0, 200));
+            
+            const importedData = parseImportedContent(content);
+            
+            if (importedData && importedData.chunks.length > 0) {
+              // 创建一个新的训练记录
+              const record = createTrainingFromImport(importedData, file.name);
+              
+              // 重新渲染历史记录
+              renderTrainingHistory();
+              
+              // 显示成功消息
+              const statusText = record.completed ? "已完成" : "进行中";
+              showToast(`导入成功！已创建${statusText}的训练记录"${record.title}"`);
+              
+              // 自动加载这个记录
+              loadTrainingRecord(record.id);
+            } else {
+              console.error("未能提取有效数据");
+              showToast("导入失败：文件格式不兼容或内容不完整");
+            }
+          } catch (error) {
+            console.error("导入过程中出错:", error);
+            showToast("导入失败：" + (error.message || "未知错误"));
+          }
+          
+          // 清除输入，以便可以再次导入相同的文件
+          event.target.value = "";
+        };
+        
+        reader.onerror = function(error) {
+          console.error("读取文件时出错:", error);
+          showToast("读取文件时出错");
+          event.target.value = "";
+        };
+        
+        reader.readAsText(file);
+      }
+
+      // 从导入数据创建训练记录 - 修改为保留原始进度
+      function createTrainingFromImport(data, filename) {
+        // 生成记录ID
+        const recordId = "record_" + Date.now();
+        
+        // 提取文件名作为训练标题
+        let title = filename.replace(/\.\w+$/, ""); // 移除文件扩展名
+        
+        // 确保标题不为空，并且长度合理
+        if (!title || title.length < 2) {
+          title = `导入的训练 ${new Date().toLocaleString()}`;
+        }
+        
+        // 确定任务的完成状态和当前步骤
+        let currentStep = 1; // 默认为第一步
+        let completed = false;
+        
+        // 检查翻译和回译的完成情况
+        const hasTranslations = data.translations.every(t => t && t.trim().length > 0);
+        const hasBackTranslations = data.backTranslations.every(bt => bt && bt.trim().length > 0);
+        
+        console.log("导入任务状态检查:", {
+          hasTranslations,
+          hasBackTranslations,
+          translationsCount: data.translations.length,
+          backTranslationsCount: data.backTranslations.length
+        });
+        
+        // 确定当前步骤
+        if (!hasTranslations) {
+          // 如果没有翻译，任务处于起始阶段
+          currentStep = 1;
+        } else if (hasTranslations && !hasBackTranslations) {
+          // 如果有翻译但没有完整回译，任务处于翻译已完成阶段
+          currentStep = 3; // 设置为回译阶段的开始
+        } else if (hasTranslations && hasBackTranslations) {
+          // 如果翻译和回译都完整，任务已完成
+          currentStep = 4;
+          completed = true;
+        }
+        
+        // 识别未完成的回译（有一些回译但不是全部）
+        if (currentStep === 3) {
+          // 计算已完成的回译数量
+          const completedBackTranslations = data.backTranslations.filter(bt => bt && bt.trim().length > 0).length;
+          
+          // 如果有部分回译已完成，设置currentChunkIndex为第一个未完成的回译
+          let currentChunkIndex = 0;
+          for (let i = 0; i < data.backTranslations.length; i++) {
+            if (!data.backTranslations[i] || data.backTranslations[i].trim().length === 0) {
+              currentChunkIndex = i;
+              break;
+            }
+          }
+          
+          // 创建训练记录
+          const record = {
+            id: recordId,
+            title: title,
+            date: new Date().toISOString(),
+            originalText: data.originalText,
+            chunks: data.chunks,
+            translations: data.translations,
+            backTranslations: data.backTranslations,
+            currentStep: currentStep,
+            currentChunkIndex: currentChunkIndex,
+            completed: completed
+          };
+          
+          // 保存到本地存储
+          storage.saveTrainingRecord(record);
+          
+          console.log("创建的导入记录:", {
+            step: currentStep,
+            index: currentChunkIndex,
+            completed: completed,
+            title: title
+          });
+          
+          return record;
+        }
+        
+        // 创建训练记录
+        const record = {
+          id: recordId,
+          title: title,
+          date: new Date().toISOString(),
+          originalText: data.originalText,
+          chunks: data.chunks,
+          translations: data.translations,
+          backTranslations: data.backTranslations,
+          currentStep: currentStep,
+          currentChunkIndex: 0,
+          completed: completed
+        };
+        
+        // 保存到本地存储
+        storage.saveTrainingRecord(record);
+        
+        console.log("创建的导入记录:", {
+          step: currentStep,
+          index: 0,
+          completed: completed,
+          title: title
+        });
+        
+        return record;
       }
     </script>
   </body>
