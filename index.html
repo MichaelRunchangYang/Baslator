@@ -252,14 +252,7 @@
 
       <div id="historySection" class="hidden">
         <div class="card">
-          <div class="flex justify-between items-center mb-4">
-            <h2 class="text-xl font-semibold">训练历史记录</h2>
-            <button id="newTrainingBtn" class="btn">新建训练</button>
-          </div>
-          <div
-            id="historyList"
-            class="divide-y divide-gray-200 dark:divide-gray-700"
-          >
+          <div id="historyList" class="divide-y divide-gray-200 dark:divide-gray-700">
             <!-- 历史记录将在这里动态生成 -->
           </div>
         </div>
@@ -939,6 +932,16 @@ Regular practice is the key to success in language learning.`;
         }
 
         elements.comparisonResults.innerHTML = html;
+        
+        // 在渲染完成后重新绑定导出按钮事件
+        document.getElementById("exportBtn").addEventListener("click", function() {
+          showExportPreview();
+        });
+        
+        // 确保新训练按钮也有事件绑定
+        document.getElementById("newSessionBtn").addEventListener("click", function() {
+          initializeNewTraining();
+        });
       }
 
       // 提取句子
@@ -1184,7 +1187,10 @@ Regular practice is the key to success in language learning.`;
           "btn absolute right-4 top-4 text-sm py-1 px-2";
         historyButton.textContent = "训练历史";
         historyButton.addEventListener("click", () => {
-          saveCurrentTraining(); // 保存当前进度
+          // 只有当有内容且已经开始训练时才保存
+          if (hasTrainingContent()) {
+            saveCurrentTraining(); // 保存当前进度
+          }
           switchToStep(0);
         });
         headerTitle.parentNode.style.position = "relative";
@@ -1206,7 +1212,7 @@ Regular practice is the key to success in language learning.`;
         // 创建训练记录对象
         const record = {
           id: state.recordId,
-          title: `训练 ${new Date().toLocaleString()}`,
+          title: state.title || `训练 ${new Date().toLocaleString()}`, // 使用已有标题或默认标题
           date: new Date().toISOString(),
           originalText: state.originalText,
           chunks: state.chunks,
@@ -1243,7 +1249,7 @@ Regular practice is the key to success in language learning.`;
           currentStep: record.currentStep || 1,
           currentBackIndex: record.currentBackIndex || 0,
           recordId: id,
-          title: record.title,
+          title: record.title, // 确保这里设置了title
         });
 
         // 确保数组长度一致性（这是关键修复）
@@ -1284,7 +1290,7 @@ Regular practice is the key to success in language learning.`;
         // 创建顶部区域，包含标题和主要操作按钮
         let historyHTML = `
           <div class="flex justify-between items-center mb-6">
-            <h2 class="text-2xl font-bold">训练历史记录</h2>
+            <h2 class="text-2xl font-bold">训练历史</h2>
             <div class="flex space-x-3">
               <button id="newTrainingBtn" class="btn bg-purple-600 hover:bg-purple-700 text-white px-4 py-2">
                 新建训练
@@ -1622,8 +1628,12 @@ Regular practice is the key to success in language learning.`;
         // 如果从任何状态切换，先保存当前输入的数据
         saveCurrentStepData();
 
-        // 然后保存整个训练记录
-        if (state.currentStep >= 1 && state.currentStep <= 4) {
+        // 然后保存整个训练记录，但只在有内容时保存
+        if (
+          state.currentStep >= 1 &&
+          state.currentStep <= 4 &&
+          hasTrainingContent()
+        ) {
           saveCurrentTraining();
         }
 
@@ -1706,12 +1716,17 @@ Regular practice is the key to success in language learning.`;
       // 导出为txt文件
       function exportAsTxt(specificRecord = null) {
         const record = specificRecord || {
-          title: `回译训练`,
+          title: state.title || `回译训练_${new Date().toLocaleDateString()}`,
           originalText: state.originalText,
           chunks: state.chunks,
           translations: state.translations,
           backTranslations: state.backTranslations,
         };
+
+        // 确保title字段存在
+        if (!record.title) {
+          record.title = `回译训练_${new Date().toLocaleDateString()}`;
+        }
 
         const content = formatExportContent(record);
 
@@ -1848,6 +1863,7 @@ Regular practice is the key to success in language learning.`;
       function showExportPreview(specificRecord = null) {
         // 使用当前状态或指定的记录
         const record = specificRecord || {
+          title: state.title || `回译训练_${new Date().toLocaleDateString()}`, // 添加标题
           originalText: state.originalText,
           chunks: state.chunks,
           translations: state.translations,
@@ -1962,7 +1978,7 @@ Regular practice is the key to success in language learning.`;
 
             // 如果当前正在编辑这个记录，也更新state
             if (state.recordId === recordId) {
-              state.recordTitle = newTitle;
+              state.title = newTitle; // 修改这里，使用state.title而不是state.recordTitle
             }
 
             // 刷新历史列表
@@ -2312,6 +2328,59 @@ Regular practice is the key to success in language learning.`;
         storage.saveTrainingRecord(record);
 
         return record;
+      }
+
+      // 添加一个函数来检查是否有需要保存的训练内容
+      function hasTrainingContent() {
+        // 如果没有记录ID或者是第一步但内容为空，则认为没有开始训练
+        if (!state.recordId) {
+          return false;
+        }
+
+        // 如果在第一步，但有内容
+        if (
+          state.currentStep === 1 &&
+          state.originalText &&
+          state.originalText.trim() !== ""
+        ) {
+          return true;
+        }
+
+        // 如果已经开始翻译或后续步骤
+        if (state.currentStep > 1) {
+          return true;
+        }
+
+        // 如果已有翻译或回译内容
+        if (
+          state.translations &&
+          state.translations.some((t) => t && t.trim() !== "")
+        ) {
+          return true;
+        }
+
+        if (
+          state.backTranslations &&
+          state.backTranslations.some((t) => t && t.trim() !== "")
+        ) {
+          return true;
+        }
+
+        return false;
+      }
+
+      // 添加初始化新训练的函数
+      function initializeNewTraining() {
+        state.recordId = null;
+        state.originalText = "";
+        state.chunks = [];
+        state.translations = [];
+        state.backTranslations = [];
+        state.currentChunkIndex = 0;
+        state.title = null;
+
+        elements.originalText.value = "";
+        switchToStep(1);
       }
     </script>
   </body>
