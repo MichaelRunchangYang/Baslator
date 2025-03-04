@@ -373,89 +373,212 @@ Regular practice is the key to success in language learning.`;
         backToHistoryBtn: document.getElementById("backToHistoryBtn"),
       };
 
-      // 分割文章为小块，优化处理缩写
+      // 优化的文本分块函数，保持完整性的同时使块长度更均匀
       function splitTextIntoChunks(text) {
-        // 预处理文本，处理常见缩写
-        const preprocessed = text
-          .replace(/Mr\./g, "Mr_DOT_")
-          .replace(/Mrs\./g, "Mrs_DOT_")
-          .replace(/Ms\./g, "Ms_DOT_")
-          .replace(/Dr\./g, "Dr_DOT_")
-          .replace(/Prof\./g, "Prof_DOT_")
-          .replace(/St\./g, "St_DOT_")
-          .replace(/Jr\./g, "Jr_DOT_")
-          .replace(/Sr\./g, "Sr_DOT_")
-          .replace(/e\.g\./g, "e_DOT_g_DOT_")
-          .replace(/i\.e\./g, "i_DOT_e_DOT_")
-          .replace(/etc\./g, "etc_DOT_")
-          .replace(/vs\./g, "vs_DOT_")
-          .replace(/U\.S\./g, "U_DOT_S_DOT_")
-          .replace(/U\.K\./g, "U_DOT_K_DOT_")
-          .replace(/Ph\.D\./g, "Ph_DOT_D_DOT_")
-          .replace(/p\.\s*\d+/g, (match) => match.replace(".", "_DOT_")) // 处理页码 p.123
-          .replace(/(\d+)\.(\d+)/g, "$1_DOT_$2"); // 处理小数点 3.14
-        
-        // 首先按句子分割
-        const sentencesRaw = preprocessed.match(/[^.!?]+[.!?]+|\s*\n\s*|\s*\r\n\s*/g) || [];
-        
-        // 还原临时替换的缩写
-        const sentences = sentencesRaw.map(sentence => 
-          sentence
-            .replace(/Mr_DOT_/g, "Mr.")
-            .replace(/Mrs_DOT_/g, "Mrs.")
-            .replace(/Ms_DOT_/g, "Ms.")
-            .replace(/Dr_DOT_/g, "Dr.")
-            .replace(/Prof_DOT_/g, "Prof.")
-            .replace(/St_DOT_/g, "St.")
-            .replace(/Jr_DOT_/g, "Jr.")
-            .replace(/Sr_DOT_/g, "Sr.")
-            .replace(/e_DOT_g_DOT_/g, "e.g.")
-            .replace(/i_DOT_e_DOT_/g, "i.e.")
-            .replace(/etc_DOT_/g, "etc.")
-            .replace(/vs_DOT_/g, "vs.")
-            .replace(/U_DOT_S_DOT_/g, "U.S.")
-            .replace(/U_DOT_K_DOT_/g, "U.K.")
-            .replace(/Ph_DOT_D_DOT_/g, "Ph.D.")
-            .replace(/p_DOT_(\d+)/g, "p.$1")
-            .replace(/(\d+)_DOT_(\d+)/g, "$1.$2")
-        );
+        if (!text || text.trim() === "") return [];
 
+        // 更全面的缩写列表，确保所有常见缩写都被处理
+        const abbreviations = [
+          "Mr.",
+          "Mrs.",
+          "Ms.",
+          "Dr.",
+          "Prof.",
+          "Rev.",
+          "St.",
+          "Jr.",
+          "Sr.",
+          "e.g.",
+          "i.e.",
+          "etc.",
+          "vs.",
+          "U.S.",
+          "U.K.",
+          "Ph.D.",
+          "M.D.",
+          "B.A.",
+          "M.A.",
+          "a.m.",
+          "p.m.",
+          "No.",
+          "Vol.",
+          "Jan.",
+          "Feb.",
+          "Mar.",
+          "Apr.",
+          "Jun.",
+          "Jul.",
+          "Aug.",
+          "Sept.",
+          "Oct.",
+          "Nov.",
+          "Dec.",
+          "Dept.",
+          "Univ.",
+          "Bros.",
+          "Inc.",
+          "Ltd.",
+          "Co.",
+          "Corp.",
+          "Ave.",
+          "Blvd.",
+          "Rd.",
+          "Fig.",
+          "Gov.",
+          "Hon.",
+        ];
+
+        // 创建一个临时占位符映射
+        const placeholders = {};
+        let tempText = text;
+
+        // 替换所有缩写
+        abbreviations.forEach((abbr, index) => {
+          const placeholder = `__ABBR_${index}__`;
+          const regex = new RegExp(abbr.replace(/\./g, "\\."), "g");
+          tempText = tempText.replace(regex, placeholder);
+          placeholders[placeholder] = abbr;
+        });
+
+        // 处理数字小数点和页码
+        tempText = tempText
+          .replace(/(\d+)\.(\d+)/g, "$1__DECIMAL__$2") // 处理小数点
+          .replace(/p\.\s*\d+/g, (match) => match.replace(".", "__PAGE__")); // 处理页码
+
+        // 按段落分割
+        const paragraphs = tempText.split(/\n\s*\n|\r\n\s*\r\n/);
         const chunks = [];
-        let currentChunk = "";
-        let sentenceCount = 0;
 
-        for (const sentence of sentences) {
-          // 跳过空行
-          if (sentence.trim() === "") continue;
+        // 设置块长度参数
+        const MIN_CHUNK_LENGTH = 80; // 最小块长度
+        const IDEAL_CHUNK_LENGTH = 200; // 理想块长度
+        const MAX_CHUNK_LENGTH = 300; // 最大块长度
 
-          // 如果是很长的句子，单独作为一个块
-          if (sentence.length > 150) {
-            if (currentChunk) {
-              chunks.push(currentChunk.trim());
-              currentChunk = "";
-              sentenceCount = 0;
+        paragraphs.forEach((paragraph) => {
+          if (!paragraph.trim()) return;
+
+          // 分割成句子
+          const sentences = paragraph.match(/[^.!?]+[.!?]+(?=\s|$)/g) || [
+            paragraph,
+          ];
+
+          // 如果句子划分不完整，用整个段落作为一个块
+          if (sentences.join("").length < paragraph.length * 0.9) {
+            chunks.push(restoreText(paragraph.trim(), placeholders));
+            return;
+          }
+
+          // 如果段落很短，直接作为一个块
+          if (paragraph.length < MIN_CHUNK_LENGTH) {
+            chunks.push(restoreText(paragraph.trim(), placeholders));
+            return;
+          }
+
+          let currentChunk = "";
+
+          for (let i = 0; i < sentences.length; i++) {
+            const sentence = sentences[i].trim();
+            const nextSentence =
+              i + 1 < sentences.length ? sentences[i + 1].trim() : null;
+
+            // 单独处理特别长的句子
+            if (sentence.length > MAX_CHUNK_LENGTH) {
+              if (currentChunk) {
+                chunks.push(restoreText(currentChunk.trim(), placeholders));
+                currentChunk = "";
+              }
+              chunks.push(restoreText(sentence, placeholders));
+              continue;
             }
-            chunks.push(sentence.trim());
+
+            // 如果当前块为空，始终添加当前句子
+            if (!currentChunk) {
+              currentChunk = sentence;
+              continue;
+            }
+
+            // 计算如果添加当前句子后的块长度
+            const potentialLength = currentChunk.length + 1 + sentence.length;
+
+            // 判断是否应该创建新块的智能逻辑
+            const isLastSentence = i === sentences.length - 1;
+
+            if (!isLastSentence) {
+              // 如果添加这个句子会超过最大长度，创建新块
+              if (potentialLength > MAX_CHUNK_LENGTH) {
+                chunks.push(restoreText(currentChunk.trim(), placeholders));
+                currentChunk = sentence;
+                continue;
+              }
+
+              // 如果当前块已接近理想长度，并且有多个句子，创建新块
+              if (
+                currentChunk.length > IDEAL_CHUNK_LENGTH &&
+                potentialLength > IDEAL_CHUNK_LENGTH * 1.2
+              ) {
+                chunks.push(restoreText(currentChunk.trim(), placeholders));
+                currentChunk = sentence;
+                continue;
+              }
+
+              // 如果下一个句子很长，可能更适合单独成块，则提前结束当前块
+              if (
+                nextSentence &&
+                nextSentence.length > IDEAL_CHUNK_LENGTH * 0.7 &&
+                potentialLength > IDEAL_CHUNK_LENGTH
+              ) {
+                chunks.push(restoreText(currentChunk.trim(), placeholders));
+                currentChunk = sentence;
+                continue;
+              }
+            }
+
+            // 如果以上条件都不满足，将句子添加到当前块
+            currentChunk += " " + sentence;
+          }
+
+          // 添加剩余内容
+          if (currentChunk) {
+            chunks.push(restoreText(currentChunk.trim(), placeholders));
+          }
+        });
+
+        // 后处理：合并过短的块（如可能的话）
+        const finalChunks = [];
+        for (let i = 0; i < chunks.length; i++) {
+          const chunk = chunks[i];
+
+          // 如果是最后一个块，或者当前块不太短，直接添加
+          if (i === chunks.length - 1 || chunk.length >= MIN_CHUNK_LENGTH) {
+            finalChunks.push(chunk);
             continue;
           }
 
-          currentChunk += sentence;
-          sentenceCount++;
-
-          // 当累积2-3个短句，或内容已经达到适当长度时，创建一个新块
-          if (sentenceCount >= 2 || currentChunk.length > 150) {
-            chunks.push(currentChunk.trim());
-            currentChunk = "";
-            sentenceCount = 0;
+          // 尝试与下一个块合并，如果合并后不会太长
+          const nextChunk = chunks[i + 1];
+          if (chunk.length + nextChunk.length + 1 <= MAX_CHUNK_LENGTH) {
+            finalChunks.push(chunk + " " + nextChunk);
+            i++; // 跳过下一个块，因为已经合并了
+          } else {
+            finalChunks.push(chunk);
           }
         }
 
-        // 添加最后一个块（如果有）
-        if (currentChunk) {
-          chunks.push(currentChunk.trim());
+        // 恢复原始文本的辅助函数
+        function restoreText(text, mapping) {
+          let result = text;
+          // 恢复所有缩写
+          for (const [placeholder, original] of Object.entries(mapping)) {
+            result = result.replace(new RegExp(placeholder, "g"), original);
+          }
+          // 恢复数字小数点和页码
+          result = result
+            .replace(/__DECIMAL__/g, ".")
+            .replace(/__PAGE__/g, ".");
+          return result;
         }
 
-        return chunks;
+        return finalChunks;
       }
 
       // 更新进度条和信息
@@ -708,23 +831,64 @@ Regular practice is the key to success in language learning.`;
         document.querySelector(".back-translation-input").focus();
       }
 
-      // 渲染对比结果
+      // 修复对比功能，保留原始的逐句对比设计
       function renderComparisonResults() {
-        // 将原始文本和回译文本按句子拆分
-        const originalSentences = extractSentences(state.originalText);
-        const backTranslationText = state.backTranslations.join(" ");
-        const backTranslationSentences = extractSentences(backTranslationText);
+        // 首先检查数据完整性
+        if (
+          !state.chunks ||
+          !state.backTranslations ||
+          state.chunks.length === 0 ||
+          state.backTranslations.length !== state.chunks.length
+        ) {
+          elements.comparisonResults.innerHTML =
+            '<div class="p-4 text-center text-gray-500">未找到可比较的内容。请确保训练已完成。</div>';
 
-        // 添加调试信息
-        console.log("原文句子数:", originalSentences.length);
-        console.log("回译句子数:", backTranslationSentences.length);
+          console.error("比较数据不完整:", {
+            chunksLength: state.chunks?.length || 0,
+            backTranslationsLength: state.backTranslations?.length || 0,
+          });
+          return;
+        }
+
+        // 将原始文本按句子拆分 - 使用原始块数据而不是整个文本
+        let allOriginalSentences = [];
+        let allBackSentences = [];
+
+        // 逐段处理，确保句子对应关系正确
+        for (let i = 0; i < state.chunks.length; i++) {
+          const originalChunk = state.chunks[i];
+          const backChunk = state.backTranslations[i];
+
+          if (!originalChunk || !backChunk) continue;
+
+          const originalSentences = extractSentences(originalChunk);
+          const backSentences = extractSentences(backChunk);
+
+          // 将段落中的句子添加到总列表，添加段落标记
+          originalSentences.forEach((sentence) => {
+            allOriginalSentences.push({
+              text: sentence,
+              paragraphIndex: i,
+            });
+          });
+
+          backSentences.forEach((sentence) => {
+            allBackSentences.push({
+              text: sentence,
+              paragraphIndex: i,
+            });
+          });
+        }
+
+        console.log("原文句子数:", allOriginalSentences.length);
+        console.log("回译句子数:", allBackSentences.length);
 
         let html = "";
 
         // 确定要比较的句子数量
         const sentenceCount = Math.min(
-          originalSentences.length,
-          backTranslationSentences.length
+          allOriginalSentences.length,
+          allBackSentences.length
         );
 
         // 如果没有句子可比较，显示提示信息
@@ -732,15 +896,28 @@ Regular practice is the key to success in language learning.`;
           html =
             '<div class="p-4 text-center text-gray-500">未找到可比较的内容。请确保训练已完成。</div>';
         } else {
+          // 分段显示比较结果
+          let currentParagraph = -1;
+
           for (let i = 0; i < sentenceCount; i++) {
-            const originalSentence = originalSentences[i].trim();
-            const backSentence = backTranslationSentences[i]
-              ? backTranslationSentences[i].trim()
-              : "";
+            const originalSentence = allOriginalSentences[i].text.trim();
+            const backSentence = allBackSentences[i].text.trim();
+            const paragraphIndex = allOriginalSentences[i].paragraphIndex;
+
+            // 如果是新段落的开始，添加段落标记
+            if (paragraphIndex !== currentParagraph) {
+              currentParagraph = paragraphIndex;
+              html += `
+                <div class="py-2 my-2 border-t border-gray-200 dark:border-gray-700">
+                  <div class="font-medium text-sm text-gray-500">段落 ${
+                    paragraphIndex + 1
+                  }</div>
+                </div>
+              `;
+            }
 
             html += `
-              <div class="comparison-item">
-                <div class="mb-1 text-sm font-medium">句子 ${i + 1}</div>
+              <div class="comparison-item py-2">
                 <div class="mb-2">
                   <span class="text-sm text-gray-500">原文：</span>
                   <span>${originalSentence}</span>
@@ -752,6 +929,13 @@ Regular practice is the key to success in language learning.`;
               </div>
             `;
           }
+
+          // 添加完成信息
+          html += `
+            <div class="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700 text-center text-gray-500">
+              <p>训练已完成 - 共${state.chunks.length}个段落，${sentenceCount}个句子</p>
+            </div>
+          `;
         }
 
         elements.comparisonResults.innerHTML = html;
@@ -760,7 +944,7 @@ Regular practice is the key to success in language learning.`;
       // 提取句子
       function extractSentences(text) {
         if (!text) return [];
-        
+
         // 预处理文本，处理常见缩写
         const preprocessed = text
           .replace(/Mr\./g, "Mr_DOT_")
@@ -780,12 +964,13 @@ Regular practice is the key to success in language learning.`;
           .replace(/Ph\.D\./g, "Ph_DOT_D_DOT_")
           .replace(/p\.\s*\d+/g, (match) => match.replace(".", "_DOT_")) // 处理页码 p.123
           .replace(/(\d+)\.(\d+)/g, "$1_DOT_$2"); // 处理小数点 3.14
-        
+
         // 按句子分割
-        const sentencesRaw = preprocessed.match(/[^.!?]+[.!?]+|\s*\n\s*|\s*\r\n\s*/g) || [];
-        
+        const sentencesRaw =
+          preprocessed.match(/[^.!?]+[.!?]+|\s*\n\s*|\s*\r\n\s*/g) || [];
+
         // 还原临时替换的缩写
-        return sentencesRaw.map(sentence => 
+        return sentencesRaw.map((sentence) =>
           sentence
             .replace(/Mr_DOT_/g, "Mr.")
             .replace(/Mrs_DOT_/g, "Mrs.")
@@ -1038,137 +1223,361 @@ Regular practice is the key to success in language learning.`;
         return record;
       }
 
-      // 加载训练记录
+      // 修复加载记录函数，使用正确的方法名
       function loadTrainingRecord(id) {
         const record = storage.getRecord(id);
-        if (!record) return false;
+        if (!record) {
+          showToast("无法加载记录，可能已被删除");
+          return;
+        }
 
-        // 更新状态
-        state.recordId = record.id;
-        state.originalText = record.originalText;
-        state.chunks = record.chunks || [];
-        state.translations = record.translations || [];
-        state.backTranslations = record.backTranslations || [];
-        state.currentChunkIndex = record.currentChunkIndex || 0;
-        state.currentStep = record.currentStep || 1;
+        console.log("加载记录:", record);
 
-        // 更新输入框值
-        elements.originalText.value = record.originalText;
+        // 更新状态 - 确保所有数组都存在且长度匹配
+        Object.assign(state, {
+          originalText: record.originalText || "",
+          chunks: record.chunks || [],
+          currentChunkIndex: record.currentChunkIndex || 0,
+          translations: record.translations || [],
+          backTranslations: record.backTranslations || [],
+          currentStep: record.currentStep || 1,
+          currentBackIndex: record.currentBackIndex || 0,
+          recordId: id,
+          title: record.title,
+        });
 
-        // 切换到正确的步骤
-        switchToStep(record.currentStep);
+        // 确保数组长度一致性（这是关键修复）
+        if (record.chunks && record.chunks.length > 0) {
+          // 确保translations数组与chunks长度匹配
+          while (state.translations.length < state.chunks.length) {
+            state.translations.push("");
+          }
 
-        return true;
+          // 确保backTranslations数组与chunks长度匹配
+          while (state.backTranslations.length < state.chunks.length) {
+            state.backTranslations.push("");
+          }
+        }
+
+        // 根据记录的进度决定要显示哪个步骤
+        const step = record.completed ? 4 : record.currentStep || 1;
+
+        // 如果是步骤1，需要显示原始文本
+        if (step === 1) {
+          elements.originalText.value = record.originalText || "";
+        }
+
+        // 切换到适当的步骤
+        switchToStep(step);
+
+        showToast(`已加载"${record.title}"`);
       }
 
-      // 渲染训练历史列表
+      // 渲染训练历史列表 - 优化排版和视觉层次
       function renderTrainingHistory() {
         const records = storage.getAllRecords();
         const recordIds = Object.keys(records).sort((a, b) => {
+          // 按创建日期倒序排列，最新的在前面
           return new Date(records[b].date) - new Date(records[a].date);
         });
 
-        // 添加导入按钮
-        let html = `
-          <div class="mb-4 text-right">
-            <label for="importFile" class="btn bg-purple-600 cursor-pointer">
-              <span>导入训练记录</span>
-              <input type="file" id="importFile" accept=".txt" class="hidden" />
-            </label>
+        // 创建顶部区域，包含标题和主要操作按钮
+        let historyHTML = `
+          <div class="flex justify-between items-center mb-6">
+            <h2 class="text-2xl font-bold">训练历史记录</h2>
+            <div class="flex space-x-3">
+              <button id="newTrainingBtn" class="btn bg-purple-600 hover:bg-purple-700 text-white px-4 py-2">
+                新建训练
+              </button>
+              <label for="importFile" class="btn bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 cursor-pointer">
+                导入训练
+                <input type="file" id="importFile" accept=".txt" class="hidden" />
+              </label>
+            </div>
+          </div>
+        `;
+
+        // 批量操作工具栏
+        historyHTML += `
+          <div class="bg-gray-100 dark:bg-gray-800 rounded-t-lg p-3 flex justify-between items-center border-b border-gray-200 dark:border-gray-700">
+            <div class="flex items-center">
+              <input type="checkbox" id="selectAllRecords" class="w-4 h-4 mr-2 cursor-pointer">
+              <label for="selectAllRecords" class="font-medium cursor-pointer">全选</label>
+            </div>
+            <button id="deleteSelectedBtn" class="btn bg-red-500 hover:bg-red-600 text-white px-3 py-1 text-sm disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+              删除所选记录
+            </button>
           </div>
         `;
 
         if (recordIds.length === 0) {
-          html += '<p class="text-center py-4 text-gray-500">没有训练记录</p>';
-          elements.historyList.innerHTML = html;
-          
-          // 添加导入文件事件监听器
-          setupImportListener();
+          historyHTML += `
+            <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-b-lg p-8 text-center">
+              <div class="text-gray-400 mb-3">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </div>
+              <p class="text-lg mb-2">还没有训练记录</p>
+              <p class="text-sm text-gray-500">开始新的训练或导入已有训练记录</p>
+            </div>
+          `;
+          elements.historyList.innerHTML = historyHTML;
+
+          setupEventListeners();
           return;
         }
 
-        recordIds.forEach((id) => {
+        // 开始记录列表
+        historyHTML += `<div class="bg-white dark:bg-gray-900 rounded-b-lg overflow-hidden shadow divide-y divide-gray-200 dark:divide-gray-700">`;
+
+        recordIds.forEach((id, index) => {
           const record = records[id];
           const date = new Date(record.date).toLocaleString();
-          const progress = calculateTrainingProgress(record);
-          const textPreview =
-            record.originalText.slice(0, 60) +
-            (record.originalText.length > 60 ? "..." : "");
+          const status = record.completed ? "已完成" : "进行中";
+          const statusClass = record.completed
+            ? "bg-green-100 dark:bg-green-800 text-green-800 dark:text-green-100"
+            : "bg-yellow-100 dark:bg-yellow-800 text-yellow-800 dark:text-yellow-100";
 
-          html += `
-            <div class="border-b border-gray-200 dark:border-gray-700 py-3" data-record-id="${id}">
-              <div class="flex justify-between items-start">
-                <div class="flex-grow mr-2">
-                  <div class="flex items-center">
-                    <h3 class="font-medium record-title" data-id="${id}">${record.title}</h3>
-                    <button class="rename-btn ml-2 text-gray-500 hover:text-primary-color" data-id="${id}">
-                      <small>✏️ 重命名</small>
-                    </button>
+          historyHTML += `
+            <div class="record-item hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors" data-id="${id}">
+              <div class="p-4">
+                <div class="flex items-start">
+                  <input type="checkbox" class="record-checkbox mt-1 w-5 h-5 mr-3 cursor-pointer" data-id="${id}">
+                  <div class="flex-1">
+                    <div class="flex items-center justify-between mb-1">
+                      <h3 class="text-lg font-bold">${record.title}</h3>
+                      <span class="badge ${statusClass} text-xs px-2 py-1 rounded-full font-medium">${status}</span>
+                    </div>
+                    <div class="grid grid-cols-2 text-sm text-gray-500 mt-2">
+                      <div class="flex items-center">
+                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                        </svg>
+                        <span>${date}</span>
+                      </div>
+                      <div class="flex items-center">
+                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"></path>
+                        </svg>
+                        <span>段落数: ${
+                          record.chunks ? record.chunks.length : 0
+                        }</span>
+                      </div>
+                    </div>
                   </div>
-                  <p class="text-sm text-gray-500">${date}</p>
-                  <p class="text-sm mt-1">${textPreview}</p>
                 </div>
-                <div class="flex">
-                  <button class="continue-btn btn bg-green-600 mr-2 text-sm py-1 px-2" data-id="${id}">
-                    ${record.completed ? "查看" : "继续"}
+                <div class="flex justify-end mt-3 space-x-2">
+                  <button class="load-record-btn btn-sm bg-blue-500 hover:bg-blue-600 text-white" data-id="${id}">
+                    加载
                   </button>
-                  <button class="export-btn btn bg-blue-600 mr-2 text-sm py-1 px-2" data-id="${id}">
+                  <button class="export-record-btn btn-sm bg-gray-500 hover:bg-gray-600 text-white" data-id="${id}">
                     导出
                   </button>
-                  <button class="delete-btn btn bg-red-600 text-sm py-1 px-2" data-id="${id}">删除</button>
-                </div>
-              </div>
-              <div class="mt-2">
-                <div class="text-xs text-gray-500 mb-1">进度: ${progress}%</div>
-                <div class="progress-bar-container" style="height: 4px;">
-                  <div class="progress-bar" style="width: ${progress}%"></div>
+                  <button class="rename-record-btn btn-sm bg-gray-500 hover:bg-gray-600 text-white" data-id="${id}">
+                    重命名
+                  </button>
+                  <button class="delete-record-btn btn-sm bg-red-500 hover:bg-red-600 text-white" data-id="${id}">
+                    删除
+                  </button>
                 </div>
               </div>
             </div>
           `;
         });
 
-        elements.historyList.innerHTML = html;
+        historyHTML += `</div>`;
+        elements.historyList.innerHTML = historyHTML;
 
-        // 添加事件监听器
-        document.querySelectorAll(".continue-btn").forEach((btn) => {
-          btn.addEventListener("click", () => {
-            const id = btn.getAttribute("data-id");
-            loadTrainingRecord(id);
+        function setupEventListeners() {
+          // 新建训练按钮
+          const newTrainingBtn = document.getElementById("newTrainingBtn");
+          if (newTrainingBtn) {
+            newTrainingBtn.addEventListener("click", () => {
+              initializeNewTraining();
+            });
+          }
+
+          // 添加全选事件处理
+          const selectAllCheckbox = document.getElementById("selectAllRecords");
+          if (selectAllCheckbox) {
+            selectAllCheckbox.addEventListener("change", function () {
+              const checkboxes = document.querySelectorAll(".record-checkbox");
+              checkboxes.forEach((checkbox) => {
+                checkbox.checked = this.checked;
+              });
+              updateDeleteButtonState();
+            });
+          }
+
+          // 添加复选框变化监听
+          document.querySelectorAll(".record-checkbox").forEach((checkbox) => {
+            checkbox.addEventListener("change", updateDeleteButtonState);
           });
-        });
 
-        // 添加导出按钮事件监听器
-        document.querySelectorAll(".export-btn").forEach((btn) => {
-          btn.addEventListener("click", () => {
-            const id = btn.getAttribute("data-id");
-            const record = storage.getRecord(id);
-            if (record) {
-              showExportPreview(record);
-            }
+          // 添加批量删除按钮事件
+          const deleteSelectedBtn =
+            document.getElementById("deleteSelectedBtn");
+          if (deleteSelectedBtn) {
+            deleteSelectedBtn.addEventListener("click", deleteSelectedRecords);
+          }
+
+          // 添加单个记录操作事件
+          document.querySelectorAll(".load-record-btn").forEach((btn) => {
+            btn.addEventListener("click", (e) => {
+              const recordId = e.target.getAttribute("data-id");
+              loadTrainingRecord(recordId);
+            });
           });
-        });
 
-        // 添加重命名按钮事件监听器
-        document.querySelectorAll(".rename-btn").forEach((btn) => {
-          btn.addEventListener("click", () => {
-            const id = btn.getAttribute("data-id");
-            showRenameDialog(id);
+          document.querySelectorAll(".export-record-btn").forEach((btn) => {
+            btn.addEventListener("click", (e) => {
+              const recordId = e.target.getAttribute("data-id");
+              const record = storage.getRecord(recordId);
+              if (record) {
+                showExportPreview(record);
+              }
+            });
           });
-        });
 
-        document.querySelectorAll(".delete-btn").forEach((btn) => {
-          btn.addEventListener("click", () => {
-            const id = btn.getAttribute("data-id");
-            if (confirm("确定要删除这条训练记录吗？")) {
+          document.querySelectorAll(".rename-record-btn").forEach((btn) => {
+            btn.addEventListener("click", (e) => {
+              const recordId = e.target.getAttribute("data-id");
+              showRenameDialog(recordId);
+            });
+          });
+
+          document.querySelectorAll(".delete-record-btn").forEach((btn) => {
+            btn.addEventListener("click", (e) => {
+              const recordId = e.target.getAttribute("data-id");
+              showDeleteConfirmation(recordId);
+            });
+          });
+
+          // 设置导入文件事件监听器
+          setupImportListener();
+        }
+
+        setupEventListeners();
+      }
+
+      // 更新删除按钮状态
+      function updateDeleteButtonState() {
+        const selectedCheckboxes = document.querySelectorAll(
+          ".record-checkbox:checked"
+        );
+        const deleteBtn = document.getElementById("deleteSelectedBtn");
+
+        if (selectedCheckboxes.length > 0) {
+          deleteBtn.removeAttribute("disabled");
+          deleteBtn.textContent = `删除所选(${selectedCheckboxes.length})`;
+        } else {
+          deleteBtn.setAttribute("disabled", "disabled");
+          deleteBtn.textContent = "删除所选记录";
+        }
+      }
+
+      // 删除选中的记录
+      function deleteSelectedRecords() {
+        const selectedCheckboxes = document.querySelectorAll(
+          ".record-checkbox:checked"
+        );
+
+        if (selectedCheckboxes.length === 0) return;
+
+        // 创建确认对话框
+        const overlay = document.createElement("div");
+        overlay.className =
+          "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50";
+
+        const dialog = document.createElement("div");
+        dialog.className =
+          "bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full";
+
+        dialog.innerHTML = `
+          <h3 class="text-xl font-bold mb-4">确认批量删除</h3>
+          <p class="mb-6">您确定要删除选中的 ${selectedCheckboxes.length} 条训练记录吗？此操作不可撤销。</p>
+          <div class="flex justify-end gap-2">
+            <button id="cancelBatchDeleteBtn" class="btn bg-gray-500">取消</button>
+            <button id="confirmBatchDeleteBtn" class="btn bg-red-500">确认删除</button>
+          </div>
+        `;
+
+        overlay.appendChild(dialog);
+        document.body.appendChild(overlay);
+
+        // 取消按钮事件
+        document
+          .getElementById("cancelBatchDeleteBtn")
+          .addEventListener("click", () => {
+            document.body.removeChild(overlay);
+          });
+
+        // 确认删除按钮事件
+        document
+          .getElementById("confirmBatchDeleteBtn")
+          .addEventListener("click", () => {
+            // 收集所有要删除的ID
+            const idsToDelete = [];
+            selectedCheckboxes.forEach((checkbox) => {
+              idsToDelete.push(checkbox.getAttribute("data-id"));
+            });
+
+            // 执行删除
+            idsToDelete.forEach((id) => {
               storage.deleteRecord(id);
-              renderTrainingHistory();
-            }
-          });
-        });
+            });
 
-        // 添加导入文件事件监听器
-        setupImportListener();
+            // 关闭对话框
+            document.body.removeChild(overlay);
+
+            // 显示成功消息
+            showToast(`已删除 ${idsToDelete.length} 条训练记录`);
+
+            // 重新渲染历史记录
+            renderTrainingHistory();
+          });
+      }
+
+      // 单条记录删除确认
+      function showDeleteConfirmation(recordId) {
+        const record = storage.getRecord(recordId);
+        if (!record) return;
+
+        const overlay = document.createElement("div");
+        overlay.className =
+          "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50";
+
+        const dialog = document.createElement("div");
+        dialog.className =
+          "bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full";
+
+        dialog.innerHTML = `
+          <h3 class="text-xl font-bold mb-4">确认删除</h3>
+          <p class="mb-6">您确定要删除"${record.title}"吗？此操作不可撤销。</p>
+          <div class="flex justify-end gap-2">
+            <button id="cancelDeleteBtn" class="btn bg-gray-500">取消</button>
+            <button id="confirmDeleteBtn" class="btn bg-red-500">确认删除</button>
+          </div>
+        `;
+
+        overlay.appendChild(dialog);
+        document.body.appendChild(overlay);
+
+        document
+          .getElementById("cancelDeleteBtn")
+          .addEventListener("click", () => {
+            document.body.removeChild(overlay);
+          });
+
+        document
+          .getElementById("confirmDeleteBtn")
+          .addEventListener("click", () => {
+            storage.deleteRecord(recordId);
+            document.body.removeChild(overlay);
+            showToast("已删除训练记录");
+            renderTrainingHistory();
+          });
       }
 
       // 计算训练进度百分比
@@ -1212,7 +1621,7 @@ Regular practice is the key to success in language learning.`;
       switchToStep = function (step) {
         // 如果从任何状态切换，先保存当前输入的数据
         saveCurrentStepData();
-        
+
         // 然后保存整个训练记录
         if (state.currentStep >= 1 && state.currentStep <= 4) {
           saveCurrentTraining();
@@ -1224,7 +1633,7 @@ Regular practice is the key to success in language learning.`;
 
       // 添加导出相关函数
 
-      // 格式化导出内容
+      // 格式化导出内容 - 修复逐句对比部分但保留原始格式
       function formatExportContent(specificRecord = null) {
         const dateStr = new Date().toLocaleDateString();
 
@@ -1241,15 +1650,6 @@ Regular practice is the key to success in language learning.`;
         let backTranslationPart = `\n\n回译（${dateStr}）：\n`;
         let comparisonPart = `\n\n前后逐句对比：\n`;
 
-        // 合并所有块用于提取原始句子
-        const originalText = record.originalText;
-        const backTranslationText = record.backTranslations.join(" ");
-
-        // 提取所有句子
-        const originalSentenceArray = extractSentences(originalText);
-        const backTranslationSentenceArray =
-          extractSentences(backTranslationText);
-
         // 创建翻译部分 - 按块组织
         for (let i = 0; i < record.chunks.length; i++) {
           translationPart +=
@@ -1262,14 +1662,40 @@ Regular practice is the key to success in language learning.`;
             record.translations[i] + "\n" + record.backTranslations[i] + "\n";
         }
 
-        // 创建对比部分 - 按句子组织
+        // 修复：创建对比部分 - 按句子组织，正确处理分段
+        let allOriginalSentences = [];
+        let allBackSentences = [];
+
+        // 按段落处理文本，保持句子的原始上下文
+        for (let i = 0; i < record.chunks.length; i++) {
+          const originalChunk = record.chunks[i] || "";
+          const backChunk = record.backTranslations[i] || "";
+
+          if (!originalChunk || !backChunk) continue;
+
+          // 提取每个块中的句子
+          const originalSentences = extractSentences(originalChunk);
+          const backSentences = extractSentences(backChunk);
+
+          // 逐句添加到数组
+          originalSentences.forEach((sentence) => {
+            if (sentence.trim()) allOriginalSentences.push(sentence.trim());
+          });
+
+          backSentences.forEach((sentence) => {
+            if (sentence.trim()) allBackSentences.push(sentence.trim());
+          });
+        }
+
+        // 比较并格式化句子
         const sentenceCount = Math.min(
-          originalSentenceArray.length,
-          backTranslationSentenceArray.length
+          allOriginalSentences.length,
+          allBackSentences.length
         );
+
         for (let i = 0; i < sentenceCount; i++) {
-          const originalSentence = originalSentenceArray[i].trim();
-          const backSentence = backTranslationSentenceArray[i].trim();
+          const originalSentence = allOriginalSentences[i];
+          const backSentence = allBackSentences[i];
 
           comparisonPart += originalSentence + "\n" + backSentence + "\n\n";
         }
@@ -1280,34 +1706,70 @@ Regular practice is the key to success in language learning.`;
       // 导出为txt文件
       function exportAsTxt(specificRecord = null) {
         const record = specificRecord || {
-          title: `回译训练_${new Date().toISOString().slice(0, 10)}`,
+          title: `回译训练`,
           originalText: state.originalText,
           chunks: state.chunks,
           translations: state.translations,
           backTranslations: state.backTranslations,
         };
-        
+
         const content = formatExportContent(record);
-        
-        // 使用记录标题作为文件名，添加日期以避免重复
+
+        // 使用记录标题作为文件名，不添加日期
         let filename = record.title;
-        
+
         // 确保文件名是有效的，去除非法字符
         filename = filename.replace(/[<>:"/\\|?*]/g, "_");
-        
-        // 添加日期后缀和扩展名
-        filename = `${filename}_${new Date().toISOString().slice(0, 10)}.txt`;
 
-        // 创建blob并下载
-        const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
-        const url = URL.createObjectURL(blob);
+        // 只添加扩展名
+        filename = `${filename}.txt`;
 
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = filename;
-        link.click();
+        try {
+          // 创建blob并下载
+          const blob = new Blob([content], {
+            type: "text/plain;charset=utf-8",
+          });
 
-        setTimeout(() => URL.revokeObjectURL(url), 100);
+          // 使用saveAs方法提供更好的下载体验
+          if (window.navigator && window.navigator.msSaveOrOpenBlob) {
+            // 对IE和Edge的特殊处理
+            window.navigator.msSaveOrOpenBlob(blob, filename);
+          } else {
+            // 对其他浏览器的处理
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = filename;
+            link.style.display = "none";
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            setTimeout(() => URL.revokeObjectURL(url), 100);
+          }
+
+          showToast("文件已成功导出");
+        } catch (error) {
+          console.error("导出文件时出错:", error);
+          showToast("导出失败: " + (error.message || "未知错误"));
+
+          // 尝试提供一个备选方案
+          try {
+            const textArea = document.createElement("textarea");
+            textArea.value = content;
+            textArea.style.position = "fixed";
+            textArea.style.top = "0";
+            textArea.style.left = "0";
+            textArea.style.width = "100%";
+            textArea.style.height = "100%";
+            textArea.style.zIndex = "9999";
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            showToast("请手动全选内容(Ctrl+A)并复制(Ctrl+C)保存");
+          } catch (e) {
+            console.error("备选方案也失败了:", e);
+          }
+        }
       }
 
       // 复制到剪贴板
@@ -1430,7 +1892,8 @@ Regular practice is the key to success in language learning.`;
         downloadBtn.className = "btn";
         downloadBtn.textContent = "下载TXT文件";
         downloadBtn.onclick = () => {
-          exportAsTxt(record);
+          document.body.removeChild(overlay); // 先关闭预览窗口
+          setTimeout(() => exportAsTxt(record), 100); // 延迟执行导出，避免冲突
         };
 
         actions.appendChild(copyBtn);
@@ -1457,10 +1920,12 @@ Regular practice is the key to success in language learning.`;
 
         // 创建对话框
         const overlay = document.createElement("div");
-        overlay.className = "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50";
+        overlay.className =
+          "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50";
 
         const dialog = document.createElement("div");
-        dialog.className = "bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full";
+        dialog.className =
+          "bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full";
 
         const title = document.createElement("h3");
         title.className = "text-xl font-bold mb-4";
@@ -1468,23 +1933,23 @@ Regular practice is the key to success in language learning.`;
 
         const inputGroup = document.createElement("div");
         inputGroup.className = "mb-4";
-        
+
         const input = document.createElement("input");
         input.type = "text";
         input.className = "w-full p-2 border rounded";
         input.value = record.title;
         input.placeholder = "输入新名称";
-        
+
         inputGroup.appendChild(input);
-        
+
         const actions = document.createElement("div");
         actions.className = "flex justify-end gap-2";
-        
+
         const cancelBtn = document.createElement("button");
         cancelBtn.className = "btn bg-gray-500";
         cancelBtn.textContent = "取消";
         cancelBtn.onclick = () => document.body.removeChild(overlay);
-        
+
         const saveBtn = document.createElement("button");
         saveBtn.className = "btn";
         saveBtn.textContent = "保存";
@@ -1494,35 +1959,35 @@ Regular practice is the key to success in language learning.`;
             // 更新记录标题
             record.title = newTitle;
             storage.saveTrainingRecord(record);
-            
+
             // 如果当前正在编辑这个记录，也更新state
             if (state.recordId === recordId) {
               state.recordTitle = newTitle;
             }
-            
+
             // 刷新历史列表
             renderTrainingHistory();
-            
+
             // 关闭对话框
             document.body.removeChild(overlay);
-            
+
             // 显示成功提示
             showToast("已重命名训练记录");
           } else {
             alert("请输入有效的名称");
           }
         };
-        
+
         actions.appendChild(cancelBtn);
         actions.appendChild(saveBtn);
-        
+
         dialog.appendChild(title);
         dialog.appendChild(inputGroup);
         dialog.appendChild(actions);
-        
+
         overlay.appendChild(dialog);
         document.body.appendChild(overlay);
-        
+
         // 聚焦到输入框
         setTimeout(() => input.focus(), 100);
       }
@@ -1540,78 +2005,90 @@ Regular practice is the key to success in language learning.`;
         // 添加调试信息
         console.log("开始解析导入内容");
         console.log("内容长度:", content.length);
-        
+
         // 尝试识别三个部分
         let translationPart = "";
         let backTranslationPart = "";
         let comparisonPart = "";
-        
+
         // 首先，确保内容不为空
         if (!content || content.trim().length === 0) {
           console.error("导入内容为空");
           return null;
         }
-        
+
         // 寻找分隔标记
         const translationMatch = content.match(/^翻译.*?：\n/);
         const backTranslationMatch = content.match(/\n\n回译.*?：\n/);
         const comparisonMatch = content.match(/\n\n前后逐句对比.*?：\n/);
-        
+
         console.log("匹配结果:", {
           trans: !!translationMatch,
           backTrans: !!backTranslationMatch,
-          comparison: !!comparisonMatch
+          comparison: !!comparisonMatch,
         });
-        
+
         // 如果找不到必要的分隔标记，尝试一种简化的解析方法
         if (!translationMatch || !backTranslationMatch) {
           console.log("无法找到标准格式标记，尝试简化解析");
           return parseSimplifiedContent(content);
         }
-        
+
         // 提取三个部分
         const transStart = translationMatch.index + translationMatch[0].length;
-        const backTransStart = backTranslationMatch.index + backTranslationMatch[0].length;
-        const comparisonStart = comparisonMatch ? comparisonMatch.index + comparisonMatch[0].length : content.length;
-        
-        translationPart = content.substring(transStart, backTranslationMatch.index);
-        backTranslationPart = content.substring(backTransStart, comparisonMatch ? comparisonMatch.index : content.length);
-        
+        const backTransStart =
+          backTranslationMatch.index + backTranslationMatch[0].length;
+        const comparisonStart = comparisonMatch
+          ? comparisonMatch.index + comparisonMatch[0].length
+          : content.length;
+
+        translationPart = content.substring(
+          transStart,
+          backTranslationMatch.index
+        );
+        backTranslationPart = content.substring(
+          backTransStart,
+          comparisonMatch ? comparisonMatch.index : content.length
+        );
+
         console.log("分割部分长度:", {
           trans: translationPart.length,
-          backTrans: backTranslationPart.length
+          backTrans: backTranslationPart.length,
         });
-        
+
         // 解析翻译部分，提取原文块和翻译
         const chunks = [];
         const translations = [];
-        
+
         const translationLines = translationPart.split("\n");
         for (let i = 0; i < translationLines.length; i += 2) {
           if (i + 1 < translationLines.length) {
             const chunk = translationLines[i].trim();
             const translation = translationLines[i + 1].trim();
-            
+
             if (chunk && translation) {
               chunks.push(chunk);
               translations.push(translation);
             }
           }
         }
-        
+
         // 解析回译部分，提取回译文本
         const backTranslations = [];
         const backTranslationLines = backTranslationPart.split("\n");
-        
+
         let currentTranslationIndex = 0;
         for (let i = 0; i < backTranslationLines.length; i++) {
           const line = backTranslationLines[i].trim();
-          
+
           // 跳过空行
           if (!line) continue;
-          
+
           // 如果这一行与翻译中的某一行匹配，则下一行应该是对应的回译
-          if (i + 1 < backTranslationLines.length && translations.includes(line)) {
+          if (
+            i + 1 < backTranslationLines.length &&
+            translations.includes(line)
+          ) {
             const backTranslation = backTranslationLines[i + 1].trim();
             if (backTranslation) {
               backTranslations.push(backTranslation);
@@ -1619,7 +2096,7 @@ Regular practice is the key to success in language learning.`;
             }
           }
         }
-        
+
         // 如果上面的方法没有找到任何回译，尝试简单的偶数行提取方法
         if (backTranslations.length === 0) {
           for (let i = 1; i < backTranslationLines.length; i += 2) {
@@ -1631,97 +2108,108 @@ Regular practice is the key to success in language learning.`;
             }
           }
         }
-        
+
         console.log("解析结果:", {
           chunks: chunks.length,
           translations: translations.length,
-          backTranslations: backTranslations.length
+          backTranslations: backTranslations.length,
         });
-        
+
         // 确保回译数组长度与翻译数组长度一致，未完成的部分用空字符串填充
         while (backTranslations.length < chunks.length) {
           backTranslations.push(""); // 未完成的回译用空字符串填充
         }
-        
+
         // 确保所有数组长度一致
-        const minLength = Math.min(chunks.length, translations.length, backTranslations.length);
-        
+        const minLength = Math.min(
+          chunks.length,
+          translations.length,
+          backTranslations.length
+        );
+
         if (minLength === 0) {
           console.error("无法从内容中提取有效数据");
           return null;
         }
-        
+
         // 截取相同长度
         const finalChunks = chunks.slice(0, minLength);
         const finalTranslations = translations.slice(0, minLength);
         const finalBackTranslations = backTranslations.slice(0, minLength);
-        
+
         // 合并原文块以获得完整原文
         const originalText = finalChunks.join(" ");
-        
+
         return {
           originalText,
           chunks: finalChunks,
           translations: finalTranslations,
-          backTranslations: finalBackTranslations
+          backTranslations: finalBackTranslations,
         };
       }
 
       // 尝试使用简化方法解析内容
       function parseSimplifiedContent(content) {
         console.log("使用简化方法解析内容");
-        
+
         // 按行分割
-        const lines = content.split("\n").filter(line => line.trim().length > 0);
-        
-        if (lines.length < 6) { // 至少需要2组数据，每组3行
+        const lines = content
+          .split("\n")
+          .filter((line) => line.trim().length > 0);
+
+        if (lines.length < 6) {
+          // 至少需要2组数据，每组3行
           console.error("行数不足，无法解析");
           return null;
         }
-        
+
         const chunks = [];
         const translations = [];
         const backTranslations = [];
-        
+
         // 尝试识别模式
         // 假设文件中的内容是按块组织的：原文、翻译、回译，以及可能的空行
         for (let i = 0; i < lines.length - 2; i++) {
           const potentialChunk = lines[i].trim();
-          const potentialTranslation = lines[i+1].trim();
-          const potentialBackTranslation = lines[i+2].trim();
-          
+          const potentialTranslation = lines[i + 1].trim();
+          const potentialBackTranslation = lines[i + 2].trim();
+
           // 检查这三行是否形成有效的数据组
           // 原文应该包含英文字符，翻译应该包含中文字符，回译应该包含英文字符
           const hasEnglish = (text) => /[a-zA-Z]/.test(text);
           const hasChinese = (text) => /[\u4e00-\u9fa5]/.test(text);
-          
-          if (hasEnglish(potentialChunk) && hasChinese(potentialTranslation) && hasEnglish(potentialBackTranslation)) {
+
+          if (
+            hasEnglish(potentialChunk) &&
+            hasChinese(potentialTranslation) &&
+            hasEnglish(potentialBackTranslation)
+          ) {
             chunks.push(potentialChunk);
             translations.push(potentialTranslation);
             backTranslations.push(potentialBackTranslation);
             i += 2; // 跳过已处理的行
           }
         }
-        
+
         console.log("简化解析结果:", {
           chunks: chunks.length,
           translations: translations.length,
-          backTranslations: backTranslations.length
+          backTranslations: backTranslations.length,
         });
-        
+
         if (chunks.length === 0) {
           console.error("简化解析无法提取有效数据");
           return null;
         }
-        
+
         // 合并原文块以获得完整原文
         const originalText = chunks.join(" ");
-        
+
         return {
           originalText,
           chunks,
           translations,
-          backTranslations
+          backTranslations,
         };
       }
 
@@ -1730,162 +2218,99 @@ Regular practice is the key to success in language learning.`;
         const file = event.target.files[0];
         if (!file) return;
 
-        // 显示加载指示器
-        showToast("正在解析文件...");
-
         const reader = new FileReader();
-        
-        reader.onload = function(e) {
+
+        reader.onload = function (e) {
           try {
             const content = e.target.result;
-            console.log("文件已读取，长度:", content.length);
-            
-            // 显示文件内容的前200个字符以便调试
-            console.log("文件内容预览:", content.substring(0, 200));
-            
-            const importedData = parseImportedContent(content);
-            
-            if (importedData && importedData.chunks.length > 0) {
-              // 创建一个新的训练记录
-              const record = createTrainingFromImport(importedData, file.name);
-              
-              // 重新渲染历史记录
-              renderTrainingHistory();
-              
-              // 显示成功消息
-              const statusText = record.completed ? "已完成" : "进行中";
-              showToast(`导入成功！已创建${statusText}的训练记录"${record.title}"`);
-              
-              // 自动加载这个记录
-              loadTrainingRecord(record.id);
+
+            // 不修改原有状态对象，而是先获取解析结果
+            const importData = parseImportedContent(content);
+
+            if (importData) {
+              // 使用文件名作为标题
+              const fileName = file.name.replace(/\.[^/.]+$/, "");
+
+              // 判断完成状态
+              const isCompleted =
+                importData.backTranslations &&
+                importData.chunks &&
+                importData.backTranslations.length ===
+                  importData.chunks.length &&
+                importData.backTranslations.every(
+                  (bt) => bt && bt.trim().length > 0
+                );
+
+              // 更新状态属性
+              Object.assign(state, {
+                originalText: importData.originalText || "",
+                chunks: importData.chunks || [],
+                translations: importData.translations || [],
+                backTranslations: importData.backTranslations || [],
+                currentChunkIndex: 0,
+                currentBackIndex: 0,
+                currentStep: isCompleted ? 4 : 1, // 如果完成了，设置为比较步骤
+                title: fileName,
+                recordId: null, // 确保创建新记录
+              });
+
+              // 保存状态
+              const savedRecord = saveCurrentState(isCompleted);
+
+              showToast(`成功导入 "${fileName}"`);
+
+              // 根据状态显示界面 - 修复：使用switchToStep而不是setupComparisonView
+              if (isCompleted) {
+                switchToStep(4); // 使用步骤4（比较页面）而不是undefined的函数
+              } else {
+                switchToStep(1);
+              }
             } else {
-              console.error("未能提取有效数据");
-              showToast("导入失败：文件格式不兼容或内容不完整");
+              showToast("无法解析导入的文件");
             }
           } catch (error) {
-            console.error("导入过程中出错:", error);
-            showToast("导入失败：" + (error.message || "未知错误"));
+            console.error("导入文件时出错:", error);
+            showToast("导入失败: " + (error.message || "格式错误"));
           }
-          
-          // 清除输入，以便可以再次导入相同的文件
+
+          // 重置文件输入框
           event.target.value = "";
         };
-        
-        reader.onerror = function(error) {
-          console.error("读取文件时出错:", error);
-          showToast("读取文件时出错");
-          event.target.value = "";
-        };
-        
+
         reader.readAsText(file);
       }
 
-      // 从导入数据创建训练记录 - 修改为保留原始进度
-      function createTrainingFromImport(data, filename) {
-        // 生成记录ID
-        const recordId = "record_" + Date.now();
-        
-        // 提取文件名作为训练标题
-        let title = filename.replace(/\.\w+$/, ""); // 移除文件扩展名
-        
-        // 确保标题不为空，并且长度合理
-        if (!title || title.length < 2) {
-          title = `导入的训练 ${new Date().toLocaleString()}`;
-        }
-        
-        // 确定任务的完成状态和当前步骤
-        let currentStep = 1; // 默认为第一步
-        let completed = false;
-        
-        // 检查翻译和回译的完成情况
-        const hasTranslations = data.translations.every(t => t && t.trim().length > 0);
-        const hasBackTranslations = data.backTranslations.every(bt => bt && bt.trim().length > 0);
-        
-        console.log("导入任务状态检查:", {
-          hasTranslations,
-          hasBackTranslations,
-          translationsCount: data.translations.length,
-          backTranslationsCount: data.backTranslations.length
-        });
-        
-        // 确定当前步骤
-        if (!hasTranslations) {
-          // 如果没有翻译，任务处于起始阶段
-          currentStep = 1;
-        } else if (hasTranslations && !hasBackTranslations) {
-          // 如果有翻译但没有完整回译，任务处于翻译已完成阶段
-          currentStep = 3; // 设置为回译阶段的开始
-        } else if (hasTranslations && hasBackTranslations) {
-          // 如果翻译和回译都完整，任务已完成
-          currentStep = 4;
-          completed = true;
-        }
-        
-        // 识别未完成的回译（有一些回译但不是全部）
-        if (currentStep === 3) {
-          // 计算已完成的回译数量
-          const completedBackTranslations = data.backTranslations.filter(bt => bt && bt.trim().length > 0).length;
-          
-          // 如果有部分回译已完成，设置currentChunkIndex为第一个未完成的回译
-          let currentChunkIndex = 0;
-          for (let i = 0; i < data.backTranslations.length; i++) {
-            if (!data.backTranslations[i] || data.backTranslations[i].trim().length === 0) {
-              currentChunkIndex = i;
-              break;
-            }
+      // 修复保存记录函数，确保保留加载的原始标题
+      function saveCurrentState(completed = false) {
+        const currentTime = new Date().toISOString();
+
+        // 如果不存在记录ID，创建新记录
+        if (!state.recordId) {
+          state.recordId = `record_${Date.now()}`;
+
+          // 只有新记录才使用默认标题，否则保留原有标题
+          if (!state.title) {
+            state.title = `回译训练_${new Date().toLocaleDateString()}`;
           }
-          
-          // 创建训练记录
-          const record = {
-            id: recordId,
-            title: title,
-            date: new Date().toISOString(),
-            originalText: data.originalText,
-            chunks: data.chunks,
-            translations: data.translations,
-            backTranslations: data.backTranslations,
-            currentStep: currentStep,
-            currentChunkIndex: currentChunkIndex,
-            completed: completed
-          };
-          
-          // 保存到本地存储
-          storage.saveTrainingRecord(record);
-          
-          console.log("创建的导入记录:", {
-            step: currentStep,
-            index: currentChunkIndex,
-            completed: completed,
-            title: title
-          });
-          
-          return record;
         }
-        
-        // 创建训练记录
+
         const record = {
-          id: recordId,
-          title: title,
-          date: new Date().toISOString(),
-          originalText: data.originalText,
-          chunks: data.chunks,
-          translations: data.translations,
-          backTranslations: data.backTranslations,
-          currentStep: currentStep,
-          currentChunkIndex: 0,
-          completed: completed
-        };
-        
-        // 保存到本地存储
-        storage.saveTrainingRecord(record);
-        
-        console.log("创建的导入记录:", {
-          step: currentStep,
-          index: 0,
+          id: state.recordId,
+          title: state.title, // 使用状态中保存的标题
+          originalText: state.originalText,
+          chunks: state.chunks,
+          translations: state.translations,
+          backTranslations: state.backTranslations,
+          currentChunkIndex: state.currentChunkIndex,
+          currentBackIndex: state.currentBackIndex,
+          currentStep: state.currentStep,
+          date: currentTime,
           completed: completed,
-          title: title
-        });
-        
+        };
+
+        // 修复：使用正确的方法名 saveTrainingRecord 而不是 saveRecord
+        storage.saveTrainingRecord(record);
+
         return record;
       }
     </script>
